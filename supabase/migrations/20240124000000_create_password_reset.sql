@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS password_reset_logs (
     success BOOLEAN NOT NULL,
     error_code TEXT,
     error_message TEXT,
-    execution_context JSONB -- New column for detailed execution logs
+    execution_context JSONB
 );
 
 -- Create the password reset function with enhanced logging
@@ -47,7 +47,7 @@ BEGIN
         'step', 'function_entry',
         'timestamp', now(),
         'params', jsonb_build_object(
-            'member_number', member_number,
+            'member_number', handle_password_reset.member_number,
             'has_admin_user_id', admin_user_id IS NOT NULL,
             'has_current_password', current_password IS NOT NULL
         )
@@ -66,8 +66,8 @@ BEGIN
     -- Get member record and auth user id with logging
     SELECT id, auth_user_id, verified, status 
     INTO v_member_record
-    FROM members 
-    WHERE members.member_number = handle_password_reset.member_number;
+    FROM members m
+    WHERE m.member_number = handle_password_reset.member_number;
 
     v_execution_log := array_append(v_execution_log, jsonb_build_object(
         'step', 'member_lookup',
@@ -152,7 +152,7 @@ BEGIN
             'message', 'Password successfully reset',
             'details', jsonb_build_object(
                 'timestamp', now(),
-                'member_number', member_number,
+                'member_number', handle_password_reset.member_number,
                 'reset_type', v_reset_type,
                 'execution_log', v_execution_log
             )
@@ -176,7 +176,7 @@ BEGIN
             'code', SQLSTATE,
             'details', jsonb_build_object(
                 'timestamp', now(),
-                'member_number', member_number,
+                'member_number', handle_password_reset.member_number,
                 'error_details', format('Error occurred during password update: %s', SQLERRM),
                 'execution_log', v_execution_log
             )
@@ -196,7 +196,7 @@ BEGIN
         error_message,
         execution_context
     ) VALUES (
-        member_number,
+        handle_password_reset.member_number,
         v_reset_type,
         COALESCE(admin_user_id, v_member_record.auth_user_id),
         client_info,
