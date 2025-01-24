@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS password_reset_logs (
     error_message TEXT
 );
 
--- Create the password reset function
+-- Create the password reset function with SECURITY DEFINER
 CREATE OR REPLACE FUNCTION handle_password_reset(
     member_number TEXT,
     new_password TEXT,
@@ -25,7 +25,11 @@ CREATE OR REPLACE FUNCTION handle_password_reset(
     ip_address TEXT DEFAULT NULL,
     user_agent TEXT DEFAULT NULL,
     client_info JSONB DEFAULT NULL
-) RETURNS JSONB AS $$
+) RETURNS JSONB 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
 DECLARE
     v_user_id UUID;
     v_member_record RECORD;
@@ -35,49 +39,52 @@ DECLARE
     v_error_message TEXT;
     v_success BOOLEAN;
 BEGIN
-    -- Input validation
+    -- Input validation with detailed logging
     IF new_password IS NULL OR length(new_password) < 8 THEN
+        RAISE NOTICE 'Password validation failed: length < 8 or null';
         RAISE EXCEPTION 'Invalid password' USING ERRCODE = 'INVALID_PASSWORD';
     END IF;
 
-    -- Get member record and auth user id
+    -- Get member record and auth user id with logging
     SELECT id, auth_user_id, verified, status 
     INTO v_member_record
     FROM members 
     WHERE members.member_number = handle_password_reset.member_number;
 
     IF v_member_record IS NULL THEN
+        RAISE NOTICE 'Member not found: %', member_number;
         RAISE EXCEPTION 'Member not found' USING ERRCODE = 'MEMBER_NOT_FOUND';
     END IF;
 
-    -- Determine reset type and validate permissions
+    -- Enhanced permission checking with logging
     IF admin_user_id IS NOT NULL THEN
-        -- Admin reset
+        RAISE NOTICE 'Admin reset attempt by user: %', admin_user_id;
         IF NOT EXISTS (
             SELECT 1 FROM user_roles 
             WHERE user_id = admin_user_id 
             AND role = 'admin'::app_role
         ) THEN
+            RAISE NOTICE 'Unauthorized admin reset attempt by user: %', admin_user_id;
             RAISE EXCEPTION 'Unauthorized admin reset attempt' USING ERRCODE = 'UNAUTHORIZED';
         END IF;
         v_reset_type := 'admin';
     ELSE
-        -- Self-service reset
         IF current_password IS NULL THEN
+            RAISE NOTICE 'Self-service reset attempt without current password';
             RAISE EXCEPTION 'Current password required' USING ERRCODE = 'CURRENT_PASSWORD_REQUIRED';
         END IF;
         v_reset_type := 'self_service';
     END IF;
 
-    -- Begin password update
+    -- Begin password update with enhanced error handling
     BEGIN
+        RAISE NOTICE 'Attempting password update for auth_user_id: %', v_member_record.auth_user_id;
+        
         -- Use auth.update_user() instead of direct update
-        -- This requires the security definer permission and proper JWT
-        PERFORM
-            auth.update_user(
-                v_member_record.auth_user_id,
-                JSONB_BUILD_OBJECT('password', new_password)
-            );
+        PERFORM auth.update_user(
+            v_member_record.auth_user_id,
+            JSONB_BUILD_OBJECT('password', new_password)
+        );
 
         -- Update member record
         UPDATE members 
@@ -97,25 +104,28 @@ BEGIN
             )
         );
 
+        RAISE NOTICE 'Password reset successful for member: %', member_number;
+
     EXCEPTION WHEN OTHERS THEN
         v_success := FALSE;
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;
+        
+        RAISE NOTICE 'Password reset failed: % %', SQLSTATE, SQLERRM;
+        
         v_response := jsonb_build_object(
             'success', FALSE,
             'error', SQLERRM,
             'code', SQLSTATE,
             'details', jsonb_build_object(
                 'timestamp', now(),
-                'member_number', member_number
+                'member_number', member_number,
+                'error_details', format('Error occurred during password update: %s', SQLERRM)
             )
         );
-        
-        -- Log detailed error for debugging
-        RAISE NOTICE 'Password reset failed: % %', SQLSTATE, SQLERRM;
     END;
 
-    -- Log the reset attempt
+    -- Log the reset attempt with enhanced details
     INSERT INTO password_reset_logs (
         member_number,
         reset_type,
@@ -140,7 +150,7 @@ BEGIN
 
     RETURN v_response;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Grant necessary permissions
 GRANT USAGE ON TYPE password_reset_type TO authenticated;
