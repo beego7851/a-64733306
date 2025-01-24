@@ -66,24 +66,18 @@ BEGIN
         IF current_password IS NULL THEN
             RAISE EXCEPTION 'Current password required' USING ERRCODE = 'CURRENT_PASSWORD_REQUIRED';
         END IF;
-        
-        -- Verify current password (this requires proper auth.users access)
-        -- Note: This would typically use auth.verify_user_password() which needs to be granted
         v_reset_type := 'self_service';
     END IF;
 
     -- Begin password update
     BEGIN
-        -- Update auth.users password
-        -- Note: This requires proper permissions to auth.users
-        UPDATE auth.users 
-        SET encrypted_password = crypt(new_password, gen_salt('bf'))
-        WHERE id = v_member_record.auth_user_id
-        RETURNING id INTO v_user_id;
-
-        IF v_user_id IS NULL THEN
-            RAISE EXCEPTION 'Auth user not found' USING ERRCODE = 'AUTH_NOT_FOUND';
-        END IF;
+        -- Use auth.update_user() instead of direct update
+        -- This requires the security definer permission and proper JWT
+        PERFORM
+            auth.update_user(
+                v_member_record.auth_user_id,
+                JSONB_BUILD_OBJECT('password', new_password)
+            );
 
         -- Update member record
         UPDATE members 
@@ -116,6 +110,9 @@ BEGIN
                 'member_number', member_number
             )
         );
+        
+        -- Log detailed error for debugging
+        RAISE NOTICE 'Password reset failed: % %', SQLSTATE, SQLERRM;
     END;
 
     -- Log the reset attempt
@@ -158,3 +155,6 @@ CREATE POLICY "Enable read access for admins" ON password_reset_logs
         WHERE user_roles.user_id = auth.uid() 
         AND role = 'admin'
     ));
+
+-- Grant RLS permissions
+ALTER TABLE password_reset_logs ENABLE ROW LEVEL SECURITY;
