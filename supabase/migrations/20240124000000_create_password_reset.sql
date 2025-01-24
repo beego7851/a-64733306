@@ -13,10 +13,11 @@ CREATE TABLE IF NOT EXISTS password_reset_logs (
     created_at TIMESTAMPTZ DEFAULT now(),
     success BOOLEAN NOT NULL,
     error_code TEXT,
-    error_message TEXT
+    error_message TEXT,
+    execution_context JSONB -- New column for detailed execution logs
 );
 
--- Create the password reset function with correct modifier order
+-- Create the password reset function with enhanced logging
 CREATE OR REPLACE FUNCTION handle_password_reset(
     member_number TEXT,
     new_password TEXT,
@@ -39,10 +40,26 @@ DECLARE
     v_error_code TEXT;
     v_error_message TEXT;
     v_success BOOLEAN;
+    v_execution_log JSONB[];
 BEGIN
+    -- Log function entry
+    v_execution_log := array_append(v_execution_log, jsonb_build_object(
+        'step', 'function_entry',
+        'timestamp', now(),
+        'params', jsonb_build_object(
+            'member_number', member_number,
+            'has_admin_user_id', admin_user_id IS NOT NULL,
+            'has_current_password', current_password IS NOT NULL
+        )
+    ));
+
     -- Input validation with detailed logging
     IF new_password IS NULL OR length(new_password) < 8 THEN
-        RAISE NOTICE 'Password validation failed: length < 8 or null';
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'password_validation',
+            'timestamp', now(),
+            'error', 'Invalid password length or null'
+        ));
         RAISE EXCEPTION 'Invalid password' USING ERRCODE = 'INVALID_PASSWORD';
     END IF;
 
@@ -52,26 +69,45 @@ BEGIN
     FROM members 
     WHERE members.member_number = handle_password_reset.member_number;
 
+    v_execution_log := array_append(v_execution_log, jsonb_build_object(
+        'step', 'member_lookup',
+        'timestamp', now(),
+        'found', v_member_record IS NOT NULL,
+        'has_auth_user_id', v_member_record.auth_user_id IS NOT NULL
+    ));
+
     IF v_member_record IS NULL THEN
-        RAISE NOTICE 'Member not found: %', member_number;
         RAISE EXCEPTION 'Member not found' USING ERRCODE = 'MEMBER_NOT_FOUND';
     END IF;
 
     -- Enhanced permission checking with logging
     IF admin_user_id IS NOT NULL THEN
-        RAISE NOTICE 'Admin reset attempt by user: %', admin_user_id;
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'admin_permission_check',
+            'timestamp', now(),
+            'admin_user_id', admin_user_id
+        ));
+
         IF NOT EXISTS (
             SELECT 1 FROM user_roles 
             WHERE user_id = admin_user_id 
             AND role = 'admin'::app_role
         ) THEN
-            RAISE NOTICE 'Unauthorized admin reset attempt by user: %', admin_user_id;
+            v_execution_log := array_append(v_execution_log, jsonb_build_object(
+                'step', 'admin_permission_check',
+                'timestamp', now(),
+                'error', 'Unauthorized admin reset attempt'
+            ));
             RAISE EXCEPTION 'Unauthorized admin reset attempt' USING ERRCODE = 'UNAUTHORIZED';
         END IF;
         v_reset_type := 'admin';
     ELSE
         IF current_password IS NULL THEN
-            RAISE NOTICE 'Self-service reset attempt without current password';
+            v_execution_log := array_append(v_execution_log, jsonb_build_object(
+                'step', 'self_service_validation',
+                'timestamp', now(),
+                'error', 'Current password required'
+            ));
             RAISE EXCEPTION 'Current password required' USING ERRCODE = 'CURRENT_PASSWORD_REQUIRED';
         END IF;
         v_reset_type := 'self_service';
@@ -79,20 +115,36 @@ BEGIN
 
     -- Begin password update with enhanced error handling
     BEGIN
-        RAISE NOTICE 'Attempting password update for auth_user_id: %', v_member_record.auth_user_id;
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'password_update_start',
+            'timestamp', now(),
+            'auth_user_id', v_member_record.auth_user_id
+        ));
         
-        -- Use auth.update_user() instead of direct update
+        -- Use auth.update_user() with logging
         PERFORM auth.update_user(
             v_member_record.auth_user_id,
             JSONB_BUILD_OBJECT('password', new_password)
         );
 
-        -- Update member record
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'auth_update_user',
+            'timestamp', now(),
+            'success', true
+        ));
+
+        -- Update member record with logging
         UPDATE members 
         SET 
             updated_at = now(),
             password_reset_required = FALSE
         WHERE member_number = handle_password_reset.member_number;
+
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'member_record_update',
+            'timestamp', now(),
+            'success', true
+        ));
 
         v_success := TRUE;
         v_response := jsonb_build_object(
@@ -101,18 +153,22 @@ BEGIN
             'details', jsonb_build_object(
                 'timestamp', now(),
                 'member_number', member_number,
-                'reset_type', v_reset_type
+                'reset_type', v_reset_type,
+                'execution_log', v_execution_log
             )
         );
-
-        RAISE NOTICE 'Password reset successful for member: %', member_number;
 
     EXCEPTION WHEN OTHERS THEN
         v_success := FALSE;
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;
         
-        RAISE NOTICE 'Password reset failed: % %', SQLSTATE, SQLERRM;
+        v_execution_log := array_append(v_execution_log, jsonb_build_object(
+            'step', 'error_handler',
+            'timestamp', now(),
+            'error_code', SQLSTATE,
+            'error_message', SQLERRM
+        ));
         
         v_response := jsonb_build_object(
             'success', FALSE,
@@ -121,7 +177,8 @@ BEGIN
             'details', jsonb_build_object(
                 'timestamp', now(),
                 'member_number', member_number,
-                'error_details', format('Error occurred during password update: %s', SQLERRM)
+                'error_details', format('Error occurred during password update: %s', SQLERRM),
+                'execution_log', v_execution_log
             )
         );
     END;
@@ -136,7 +193,8 @@ BEGIN
         user_agent,
         success,
         error_code,
-        error_message
+        error_message,
+        execution_context
     ) VALUES (
         member_number,
         v_reset_type,
@@ -146,7 +204,8 @@ BEGIN
         user_agent,
         v_success,
         v_error_code,
-        v_error_message
+        v_error_message,
+        jsonb_build_object('execution_log', v_execution_log)
     );
 
     RETURN v_response;
