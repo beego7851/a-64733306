@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS password_reset_logs (
     error_message TEXT
 );
 
--- Create the password reset function with SECURITY DEFINER
+-- Create the password reset function with correct modifier order
 CREATE OR REPLACE FUNCTION handle_password_reset(
     member_number TEXT,
     new_password TEXT,
@@ -25,10 +25,11 @@ CREATE OR REPLACE FUNCTION handle_password_reset(
     ip_address TEXT DEFAULT NULL,
     user_agent TEXT DEFAULT NULL,
     client_info JSONB DEFAULT NULL
-) RETURNS JSONB 
+)
+RETURNS JSONB 
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-LANGUAGE plpgsql
 AS $$
 DECLARE
     v_user_id UUID;
