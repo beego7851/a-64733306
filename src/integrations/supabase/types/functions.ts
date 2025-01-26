@@ -72,7 +72,6 @@ export type DatabaseFunctions = {
     Args: Record<PropertyKey, never>;
     Returns: undefined;
   };
-
   handle_failed_login: {
     Args: { member_number: string };
     Returns: {
@@ -82,13 +81,54 @@ export type DatabaseFunctions = {
       lockout_duration: string;
     };
   };
-
+  validate_reset_token: {
+    Args: { token_value: string };
+    Returns: boolean;
+  };
   validate_user_roles: {
     Args: Record<PropertyKey, never>;
     Returns: {
       check_type: string;
       status: string;
       details: Json;
+    }[];
+  };
+  handle_password_reset: {
+    Args: {
+      member_number: string;
+      new_password: string;
+      current_password?: string;
+      admin_user_id?: string;
+      ip_address?: string | null;
+      user_agent?: string | null;
+      client_info?: Json | null;
+    };
+    Returns: Json;
+  };
+  handle_password_reset_with_token: {
+    Args: {
+      token_value: string;
+      new_password: string;
+      ip_address?: string | null;
+      user_agent?: string | null;
+      client_info?: Json | null;
+    };
+    Returns: Json;
+  };
+  generate_magic_link_token: {
+    Args: {
+      p_member_number: string;
+      p_token_type?: 'password_reset' | 'email_verification';
+    };
+    Returns: string;
+  };
+  get_user_session_info: {
+    Args: { 
+      user_id_param: string 
+    };
+    Returns: {
+      last_login: string | null;
+      is_active: boolean;
     }[];
   };
 };

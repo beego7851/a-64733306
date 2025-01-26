@@ -153,6 +153,101 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          daily_counter: number | null
+          delivered_at: string | null
+          email_category: string | null
+          email_type: Database["public"]["Enums"]["email_type"]
+          error_message: string | null
+          id: string
+          member_number: string | null
+          metadata: Json | null
+          priority: string | null
+          queued_for_date: string | null
+          recipient_email: string
+          resend_id: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["email_status"]
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_counter?: number | null
+          delivered_at?: string | null
+          email_category?: string | null
+          email_type: Database["public"]["Enums"]["email_type"]
+          error_message?: string | null
+          id?: string
+          member_number?: string | null
+          metadata?: Json | null
+          priority?: string | null
+          queued_for_date?: string | null
+          recipient_email: string
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_status"]
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_counter?: number | null
+          delivered_at?: string | null
+          email_category?: string | null
+          email_type?: Database["public"]["Enums"]["email_type"]
+          error_message?: string | null
+          id?: string
+          member_number?: string | null
+          metadata?: Json | null
+          priority?: string | null
+          queued_for_date?: string | null
+          recipient_email?: string
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_status"]
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_member_number_fkey"
+            columns: ["member_number"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["member_number"]
+          },
+        ]
+      }
+      email_queue_config: {
+        Row: {
+          auto_process_interval: number
+          category: string
+          created_at: string | null
+          daily_limit: number
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          auto_process_interval?: number
+          category: string
+          created_at?: string | null
+          daily_limit?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          auto_process_interval?: number
+          category?: string
+          created_at?: string | null
+          daily_limit?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       enhanced_roles: {
         Row: {
           created_at: string | null
@@ -610,11 +705,14 @@ export type Database = {
           client_info: Json | null
           error_code: string | null
           error_details: string | null
+          error_message: string | null
+          execution_context: Json | null
           id: string
           ip_address: string | null
           is_reset: boolean | null
           reason: string | null
           stack_trace: string | null
+          success: boolean | null
           user_agent: string | null
           user_id: string | null
         }
@@ -625,11 +723,14 @@ export type Database = {
           client_info?: Json | null
           error_code?: string | null
           error_details?: string | null
+          error_message?: string | null
+          execution_context?: Json | null
           id?: string
           ip_address?: string | null
           is_reset?: boolean | null
           reason?: string | null
           stack_trace?: string | null
+          success?: boolean | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -640,11 +741,14 @@ export type Database = {
           client_info?: Json | null
           error_code?: string | null
           error_details?: string | null
+          error_message?: string | null
+          execution_context?: Json | null
           id?: string
           ip_address?: string | null
           is_reset?: boolean | null
           reason?: string | null
           stack_trace?: string | null
+          success?: boolean | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -691,6 +795,126 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      password_reset_tokens: {
+        Row: {
+          attempts: number
+          created_at: string
+          expires_at: string
+          id: string
+          invalidated_at: string | null
+          member_number: string | null
+          token: string
+          token_type: Database["public"]["Enums"]["token_type"]
+          used_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invalidated_at?: string | null
+          member_number?: string | null
+          token: string
+          token_type?: Database["public"]["Enums"]["token_type"]
+          used_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invalidated_at?: string | null
+          member_number?: string | null
+          token?: string
+          token_type?: Database["public"]["Enums"]["token_type"]
+          used_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_reset_tokens_member_number_fkey"
+            columns: ["member_number"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["member_number"]
+          },
+        ]
+      }
+      payment_receipts: {
+        Row: {
+          amount: number
+          collector_name: string
+          created_at: string | null
+          email_log_id: string | null
+          id: string
+          member_name: string
+          member_number: string
+          payment_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_type: string
+          receipt_number: string
+          sent_at: string | null
+          sent_to: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          collector_name: string
+          created_at?: string | null
+          email_log_id?: string | null
+          id?: string
+          member_name: string
+          member_number: string
+          payment_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_type: string
+          receipt_number: string
+          sent_at?: string | null
+          sent_to: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          collector_name?: string
+          created_at?: string | null
+          email_log_id?: string | null
+          id?: string
+          member_name?: string
+          member_number?: string
+          payment_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          payment_type?: string
+          receipt_number?: string
+          sent_at?: string | null
+          sent_to?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_email_log_id_fkey"
+            columns: ["email_log_id"]
+            isOneToOne: false
+            referencedRelation: "email_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_member_number_fkey"
+            columns: ["member_number"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["member_number"]
+          },
+          {
+            foreignKeyName: "payment_receipts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_requests: {
         Row: {
@@ -1035,6 +1259,16 @@ export type Database = {
           details: Json
         }[]
       }
+      cleanup_expired_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_failed_attempts: {
+        Args: {
+          p_member_number: string
+        }
+        Returns: undefined
+      }
       create_auth_user_for_collector: {
         Args: {
           member_num: string
@@ -1056,7 +1290,25 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      generate_magic_link_token: {
+        Args: {
+          p_member_number: string
+          p_token_type?: Database["public"]["Enums"]["token_type"]
+        }
+        Returns: string
+      }
+      generate_password_reset_token: {
+        Args: {
+          p_member_number: string
+          p_token_type?: Database["public"]["Enums"]["token_type"]
+        }
+        Returns: string
+      }
       generate_payment_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_receipt_number: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
@@ -1076,6 +1328,12 @@ export type Database = {
           failed: number
           failure_details: Json
         }[]
+      }
+      get_email_quota: {
+        Args: {
+          category: string
+        }
+        Returns: number
       }
       get_rls_policies: {
         Args: Record<PropertyKey, never>
@@ -1100,6 +1358,15 @@ export type Database = {
           name: string
           columns: Json
           rls_enabled: boolean
+        }[]
+      }
+      get_user_session_info: {
+        Args: {
+          user_id_param: string
+        }
+        Returns: {
+          last_login: string
+          is_active: boolean
         }[]
       }
       handle_failed_login: {
@@ -1131,6 +1398,16 @@ export type Database = {
             }
             Returns: Json
           }
+      handle_password_reset_with_token: {
+        Args: {
+          token_value: string
+          new_password: string
+          ip_address?: string
+          user_agent?: string
+          client_info?: Json
+        }
+        Returns: Json
+      }
       is_admin: {
         Args: {
           user_uid: string
@@ -1157,7 +1434,15 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      manual_cleanup_expired_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       perform_user_roles_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      process_email_queue: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
@@ -1189,11 +1474,33 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      use_reset_token: {
+        Args: {
+          token_value: string
+        }
+        Returns: {
+          member_number: string
+          user_id: string
+        }[]
+      }
+      validate_current_password: {
+        Args: {
+          p_member_number: string
+          p_current_password: string
+        }
+        Returns: Json
+      }
       validate_password_complexity: {
         Args: {
           password: string
         }
         Returns: Json
+      }
+      validate_reset_token: {
+        Args: {
+          token_value: string
+        }
+        Returns: boolean
       }
       validate_user_roles: {
         Args: Record<PropertyKey, never>
@@ -1220,6 +1527,15 @@ export type Database = {
         | "completed"
         | "failed"
         | "created"
+      email_status: "pending" | "sent" | "delivered" | "failed" | "bounced"
+      email_type:
+        | "password_reset"
+        | "welcome"
+        | "verification"
+        | "notification"
+        | "system_announcement"
+        | "payment_confirmation"
+        | "payment_receipt"
       monitoring_event_type:
         | "system_performance"
         | "api_latency"
@@ -1233,9 +1549,12 @@ export type Database = {
         | "connection_count"
         | "cache_hit_ratio"
       severity_level: "info" | "warning" | "error" | "critical"
+      token_type: "password_reset" | "email_verification"
     }
     CompositeTypes: {
-      [_ in never]: never
+      reset_rate_limit_error: {
+        message: string | null
+      }
     }
   }
 }

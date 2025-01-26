@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEnhancedRoleAccess } from '@/hooks/useEnhancedRoleAccess';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Login from '@/pages/Login';
-import Index from '@/pages/Index';
+import ResetPassword from '@/pages/ResetPassword';
+import DashboardView from '@/components/DashboardView';
+import UsersView from '@/components/UsersView';
+import FinancialsView from '@/components/FinancialsView';
+import SystemToolsView from '@/components/SystemToolsView';
 import ProtectedRoutes from '@/components/routing/ProtectedRoutes';
 
 function App() {
@@ -61,8 +65,13 @@ function App() {
     return null;
   }
 
-  // Show maintenance mode screen for non-admin users
-  if (!maintenanceLoading && maintenanceMode?.enabled && session && !hasRole('admin')) {
+  // Show maintenance mode screen for non-admin users, except for reset password page
+  const currentPath = window.location.pathname;
+  if (!maintenanceLoading && 
+      maintenanceMode?.enabled && 
+      session && 
+      !hasRole('admin') && 
+      !currentPath.startsWith('/reset-password')) {
     return (
       <div className="min-h-screen bg-dashboard-dark flex items-center justify-center p-4">
         <Alert className="max-w-2xl w-full bg-dashboard-card border-dashboard-error/50">
@@ -82,8 +91,13 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
-        <Route path="/" element={<ProtectedRoutes session={session} />}>
-          <Route index element={<Index />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/*" element={<ProtectedRoutes session={session} />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardView />} />
+          <Route path="users" element={<UsersView />} />
+          <Route path="financials" element={<FinancialsView />} />
+          <Route path="system" element={<SystemToolsView />} />
         </Route>
       </Routes>
       <Toaster />

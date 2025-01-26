@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Outlet, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
@@ -7,10 +7,7 @@ import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useRoleSync } from "@/hooks/useRoleSync";
 import { Loader2 } from "lucide-react";
 import MainLayout from "@/components/layout/MainLayout";
-import DashboardView from "@/components/DashboardView";
-import MembersList from "@/components/MembersList";
-import FinancialsView from "@/components/FinancialsView";
-import SystemToolsView from "@/components/SystemToolsView";
+import { canAccessTab, getDefaultRoute } from "@/utils/roleUtils";
 
 interface ProtectedRoutesProps {
   session: Session | null;
@@ -18,53 +15,122 @@ interface ProtectedRoutesProps {
 
 const ProtectedRoutes = ({ session }: ProtectedRoutesProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { roleLoading, hasRole, userRole } = useRoleAccess();
+  const { roleLoading, userRole, userRoles, canAccessTab: roleAccessCheck } = useRoleAccess();
   const { syncRoles } = useRoleSync();
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [hasShownAccessDenied, setHasShownAccessDenied] = useState(false);
+
+  // Convert path to tab
+  const pathToTab = (path: string) => {
+    const cleanPath = path.split('/')[1] || 'dashboard';
+    return cleanPath;
+  };
+
+  const [activeTab, setActiveTab] = useState(pathToTab(location.pathname));
 
   useEffect(() => {
+    const newTab = pathToTab(location.pathname);
+    console.log('Path changed, updating active tab:', {
+      path: location.pathname,
+      newTab,
+      canAccess: canAccessTab(newTab, userRoles),
+      userRole,
+      isLoading: roleLoading
+    });
+    
+    // Only check access after roles are loaded
+    if (!roleLoading && !isInitialLoad && userRoles && !canAccessTab(newTab, userRoles)) {
+      console.log('User cannot access tab:', newTab);
+      const defaultRoute = getDefaultRoute(userRoles);
+      
+      // Only show toast if we haven't shown one yet
+      if (!hasShownAccessDenied) {
+        toast({
+          title: "Access Denied",
+          description: "You don't have permission to access this section.",
+          variant: "destructive",
+        });
+        setHasShownAccessDenied(true);
+      }
+      
+      navigate(defaultRoute);
+      return;
+    }
+    
+    setActiveTab(newTab);
+  }, [location.pathname, navigate, userRoles, userRole, toast, roleLoading, isInitialLoad, hasShownAccessDenied]);
+
+  // Reset hasShownAccessDenied when roles change
+  useEffect(() => {
+    setHasShownAccessDenied(false);
+  }, [userRoles]);
+
+  useEffect(() => {
+    let mounted = true;
     console.log('ProtectedRoutes mounted, session:', !!session);
+
+    const checkAuth = async () => {
+      try {
+        if (!session) {
+          console.log('No session, redirecting to login');
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        if (mounted) {
+          await syncRoles(session.user.id);
+          setIsAuthChecking(false);
+          setIsInitialLoad(false);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        if (mounted) {
+          setIsAuthChecking(false);
+          setIsInitialLoad(false);
+          toast({
+            title: "Authentication Error",
+            description: "There was a problem verifying your access. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    checkAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      console.log('Auth state change in protected routes:', event);
+      if (!mounted) return;
+
+      console.log('Auth state change in protected routes:', {
+        event,
+        hasSession: !!currentSession,
+        userRole
+      });
       
       if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !currentSession)) {
         console.log('User signed out or token refresh failed, redirecting to login');
         navigate('/login', { replace: true });
-      } else if (event === 'SIGNED_IN' && currentSession) {
-        console.log('User signed in, checking role access');
-        if (!hasRole('member')) {
-          toast({
-            title: "Access Denied",
-            description: "You don't have permission to access this area.",
-            variant: "destructive",
-          });
-          navigate('/login', { replace: true });
-        }
+        return;
       }
     });
 
-    // Set initial load to false after a short delay
-    const timer = setTimeout(() => {
-      setIsInitialLoad(false);
-    }, 1000);
-
     return () => {
+      mounted = false;
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
-  }, [navigate, hasRole, toast]);
+  }, [navigate, session, syncRoles, userRole, toast]);
 
-  // Only show loading during initial role check and when roles are actually loading
-  const showLoading = (isInitialLoad && roleLoading) || (!session && roleLoading);
-  
-  if (showLoading) {
+  // Show loading state during initial auth check or role loading
+  if (isAuthChecking || (isInitialLoad && roleLoading)) {
     console.log('Showing loading state:', {
       isInitialLoad,
       roleLoading,
-      hasSession: !!session
+      hasSession: !!session,
+      isAuthChecking
     });
     return (
       <div className="flex items-center justify-center min-h-screen bg-dashboard-dark">
@@ -73,47 +139,43 @@ const ProtectedRoutes = ({ session }: ProtectedRoutesProps) => {
     );
   }
 
+  // If no session, redirect to login
   if (!session) {
     console.log('No session in ProtectedRoutes, redirecting to login');
-    navigate('/login', { replace: true });
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
-  console.log('Rendering protected content with role:', userRole);
-
-  const renderContent = () => {
-    console.log('Rendering content for tab:', activeTab);
-    switch (activeTab) {
-      case 'dashboard':
-        return <DashboardView />;
-      case 'users':
-        if (hasRole('admin') || hasRole('collector')) {
-          return <MembersList searchTerm="" userRole={userRole} />;
-        }
-        return null;
-      case 'financials':
-        if (hasRole('admin')) {
-          return <FinancialsView />;
-        }
-        return null;
-      case 'system':
-        if (hasRole('admin')) {
-          return <SystemToolsView />;
-        }
-        return null;
-      default:
-        return <DashboardView />;
-    }
-  };
+  // Only check route access after roles are loaded
+  const currentTab = pathToTab(location.pathname);
+  if (!roleLoading && !isInitialLoad && userRoles && !canAccessTab(currentTab, userRoles)) {
+    const defaultRoute = getDefaultRoute(userRoles);
+    return <Navigate to={defaultRoute} replace />;
+  }
 
   return (
     <MainLayout
       activeTab={activeTab}
       isSidebarOpen={isSidebarOpen}
       onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-      onTabChange={setActiveTab}
+      onTabChange={(tab) => {
+        // Only check access after roles are loaded
+        if (!roleLoading && userRoles && !canAccessTab(tab, userRoles)) {
+          if (!hasShownAccessDenied) {
+            toast({
+              title: "Access Denied",
+              description: "You don't have permission to access this section.",
+              variant: "destructive",
+            });
+            setHasShownAccessDenied(true);
+          }
+          return;
+        }
+        const path = tab === 'dashboard' ? '/' : `/${tab}`;
+        navigate(path);
+        setActiveTab(tab);
+      }}
     >
-      {renderContent()}
+      <Outlet />
     </MainLayout>
   );
 };

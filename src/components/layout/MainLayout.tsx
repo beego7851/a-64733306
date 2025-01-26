@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import MainHeader from './MainHeader';
 import SidePanel from '@/components/SidePanel';
+import { useRoleStore } from '@/store/roleStore';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -17,6 +18,8 @@ const MainLayout = ({
   onSidebarToggle,
   onTabChange,
 }: MainLayoutProps) => {
+  const { userRole } = useRoleStore();
+
   return (
     <div className="min-h-screen bg-dashboard-dark">
       <MainHeader onToggleSidebar={onSidebarToggle} />
@@ -38,13 +41,7 @@ const MainLayout = ({
             transition-transform duration-300 ease-in-out z-50
           `}
         >
-          <SidePanel 
-            currentTab={activeTab}
-            onTabChange={(tab) => {
-              onTabChange(tab);
-              onSidebarToggle();
-            }}
-          />
+          <SidePanel userRole={userRole} />
         </aside>
 
         {/* Main content */}

@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
-    "@supabase/supabase-js": "^2.48.0",
+    "@supabase/supabase-js": "^2.48.1",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

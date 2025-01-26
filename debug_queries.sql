@@ -1,3 +1,16 @@
+-- First create RLS policy for audit_logs
+CREATE POLICY "Enable read access for authenticated users"
+ON audit_logs
+FOR SELECT
+TO authenticated
+USING (
+  auth.uid() IN (
+    SELECT user_id 
+    FROM user_roles 
+    WHERE role IN ('admin', 'collector')
+  )
+);
+
 -- Comprehensive role and permission analysis query
 -- Replace 'mt05030' with the specific member number you want to check
 
@@ -94,3 +107,6 @@ AND (
 )
 
 ORDER BY recorded_at DESC;
+
+-- Enable RLS on audit_logs table if not already enabled
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;

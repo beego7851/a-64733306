@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { Key } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { PasswordForm } from "./password/PasswordForm";
 import { PasswordRequirements } from "./password/PasswordRequirements";
@@ -21,10 +16,17 @@ const ChangePasswordDialog = ({
   onOpenChange,
   memberNumber,
 }: ChangePasswordDialogProps) => {
+  console.log("[ChangePasswordDialog] Component rendered", { 
+    open, 
+    memberNumber,
+    timestamp: new Date().toISOString() 
+  });
+  
   const [memberName, setMemberName] = useState<string>("Loading...");
 
   useEffect(() => {
     const fetchMemberName = async () => {
+      console.log("[ChangePasswordDialog] Fetching member name for", memberNumber);
       try {
         const { data, error } = await supabase
           .from('members')
@@ -33,14 +35,15 @@ const ChangePasswordDialog = ({
           .single();
 
         if (error) {
-          console.error('Error fetching member name:', error);
+          console.error('[ChangePasswordDialog] Error fetching member name:', error);
           setMemberName("Unknown Member");
           return;
         }
 
+        console.log("[ChangePasswordDialog] Member name fetched successfully:", data.full_name);
         setMemberName(data.full_name);
       } catch (error) {
-        console.error('Error in fetchMemberName:', error);
+        console.error('[ChangePasswordDialog] Error in fetchMemberName:', error);
         setMemberName("Unknown Member");
       }
     };
@@ -56,31 +59,36 @@ const ChangePasswordDialog = ({
   };
 
   return (
-    <Dialog 
+    <ResponsiveDialog 
       open={open} 
-      onOpenChange={onOpenChange}
+      onOpenChange={(newOpen) => {
+        console.log("[ChangePasswordDialog] Dialog state changing to:", newOpen);
+        onOpenChange(newOpen);
+      }}
+      title="Change Password"
+      maxWidth="md"
     >
-      <DialogContent className="w-full max-w-md bg-dashboard-card border border-dashboard-cardBorder">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold text-dashboard-accent1 flex items-center gap-2">
-            <Key className="w-5 h-5" />
-            Change Password
-          </DialogTitle>
-          <div className="text-sm text-dashboard-text mt-2">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-dashboard-accent1">
+          <Key className="w-5 h-5" />
+          <div className="text-sm text-dashboard-text">
             <p className="mb-1">Member: <span className="font-medium">{memberName}</span></p>
             <p>Member Number: <span className="font-medium">{memberNumber}</span></p>
           </div>
-        </DialogHeader>
+        </div>
 
         <PasswordRequirements />
         
         <PasswordForm
           memberNumber={memberNumber}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => {
+            console.log("[ChangePasswordDialog] Cancel button clicked");
+            onOpenChange(false);
+          }}
           onSuccess={handleSuccess}
         />
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ResponsiveDialog>
   );
 };
 

@@ -1,161 +1,103 @@
-import { useCallback, useMemo, memo, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { useRoleAccess } from "@/hooks/useRoleAccess";
-import { useAuthSession } from "@/hooks/useAuthSession";
-import NavItem from "./navigation/NavItem";
+import { LogOut, Settings, Users, Home, DollarSign } from "lucide-react";
+import { useLocation, Link } from "react-router-dom";
+import { useAuthLogout } from '@/hooks/useAuthLogout';
 
 interface SidePanelProps {
-  currentTab: string;
-  onTabChange: (tab: string) => void;
+  userRole: string | null;
 }
 
-const SidePanel = memo(({ currentTab, onTabChange }: SidePanelProps) => {
-  const { session, handleSignOut } = useAuthSession();
-  const { userRole, userRoles, roleLoading, hasRole } = useRoleAccess();
-  const { toast } = useToast();
+const SidePanel = ({ userRole }: SidePanelProps) => {
+  const { handleLogout } = useAuthLogout();
+  const location = useLocation();
 
-  const prevUserRoleRef = useRef(userRole);
-  const prevUserRolesRef = useRef(userRoles);
-  const prevTabRef = useRef(currentTab);
-
-  const hasSession = !!session;
-
-  useEffect(() => {
-    if (!hasSession) {
-      console.log('No active session, access will be restricted');
-      return;
-    }
-
-    if (prevUserRoleRef.current !== userRole) {
-      console.log('SidePanel rerender: userRole changed', { old: prevUserRoleRef.current, new: userRole });
-      prevUserRoleRef.current = userRole;
-    }
-    if (prevUserRolesRef.current !== userRoles) {
-      console.log('SidePanel rerender: userRoles changed', { old: prevUserRolesRef.current, new: userRoles });
-      prevUserRolesRef.current = userRoles;
-    }
-    if (prevTabRef.current !== currentTab) {
-      console.log('SidePanel rerender: currentTab changed', { old: prevTabRef.current, new: currentTab });
-      prevTabRef.current = currentTab;
-    }
-  }, [userRole, userRoles, hasSession, currentTab]);
-
-  const navigationItems = useMemo(() => [
+  const links = [
     {
-      name: 'Overview',
-      tab: 'dashboard',
-      alwaysShow: true
+      title: "Dashboard",
+      label: "",
+      icon: <Home className="w-4 h-4" />,
+      variant: "ghost",
+      href: "/dashboard",
     },
     {
-      name: 'Users',
-      tab: 'users',
-      requiresRole: ['admin', 'collector'] as const
+      title: "Members",
+      label: "",
+      icon: <Users className="w-4 h-4" />,
+      variant: "ghost",
+      href: "/users",
     },
     {
-      name: 'Financials',
-      tab: 'financials',
-      requiresRole: ['admin', 'collector'] as const
+      title: "Financials",
+      label: "",
+      icon: <DollarSign className="w-4 h-4" />,
+      variant: "ghost",
+      href: "/financials",
     },
     {
-      name: 'System',
-      tab: 'system',
-      requiresRole: ['admin'] as const
+      title: "System",
+      label: "",
+      icon: <Settings className="w-4 h-4" />,
+      variant: "ghost",
+      href: "/system",
+    },
+  ];
+
+  const filteredLinks = links.filter(link => {
+    if (userRole === 'admin') return true;
+    if (userRole === 'collector') {
+      return ['Dashboard', 'Members', 'Financials'].includes(link.title);
     }
-  ], []);
-
-  const shouldShowTab = useCallback((tab: string): boolean => {
-    if (!hasSession) return tab === 'dashboard';
-    if (roleLoading) return tab === 'dashboard';
-    if (!userRoles || !userRole) return tab === 'dashboard';
-
-    switch (tab) {
-      case 'dashboard':
-        return true;
-      case 'users':
-        return hasRole('admin') || hasRole('collector');
-      case 'financials':
-        return hasRole('admin') || hasRole('collector');
-      case 'system':
-        return hasRole('admin');
-      default:
-        return false;
+    if (userRole === 'member') {
+      return ['Dashboard'].includes(link.title);
     }
-  }, [roleLoading, userRoles, userRole, hasRole, hasSession]);
-
-  const handleLogoutClick = useCallback(async () => {
-    console.log('Logout initiated');
-    try {
-      await handleSignOut(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to sign out. Please try again.",
-        variant: "destructive"
-      });
-    }
-  }, [handleSignOut, toast]);
-
-  const roleStatusText = useMemo(() => {
-    console.log('Calculating role status text');
-    if (!hasSession) return 'Not authenticated';
-    if (roleLoading) return 'Loading access...';
-    return userRole ? `Role: ${userRole}` : 'Access restricted';
-  }, [roleLoading, userRole, hasSession]);
-
-  const visibleNavigationItems = useMemo(() => {
-    console.log('Calculating visible navigation items');
-    if (!hasSession) return navigationItems.filter(item => item.alwaysShow);
-    return navigationItems.filter(item => 
-      item.alwaysShow || (!roleLoading && item.requiresRole?.some(role => userRoles?.includes(role)))
-    );
-  }, [navigationItems, roleLoading, userRoles, hasSession]);
-
-  const handleTabChange = useCallback((tab: string) => {
-    console.log('Tab change requested:', tab);
-    onTabChange(tab);
-  }, [onTabChange]);
-
-  console.log('SidePanel render', { userRole, roleLoading, hasSession });
+    return false;
+  });
 
   return (
-    <div className="flex flex-col h-full bg-dashboard-card border-r border-dashboard-cardBorder">
-      <ScrollArea className="flex-1">
-        <div className="space-y-4 py-4">
-          <div className="px-3 py-2">
-            <h2 className="mb-2 px-4 text-lg font-semibold text-dashboard-highlight">
-              Navigation
-            </h2>
-            <div className="space-y-1">
-              {visibleNavigationItems.map((item) => (
-                <NavItem
-                  key={item.tab}
-                  name={item.name}
-                  tab={item.tab}
-                  isActive={currentTab === item.tab}
-                  onClick={() => handleTabChange(item.tab)}
-                />
-              ))}
+    <div className="h-screen flex">
+      <div className="relative flex flex-col h-full w-64 border-r border-dashboard-cardBorder bg-dashboard-card">
+        <div className="flex-1 px-3 py-8">
+          <div className="space-y-4">
+            <div className="px-3 py-2">
+              <h2 className="mb-4 px-4 text-lg font-semibold tracking-tight text-dashboard-accent1">
+                Overview
+              </h2>
+              <nav className="space-y-1">
+                {filteredLinks.map((link, index) => (
+                  <Link
+                    key={index}
+                    to={link.href}
+                    className={cn(
+                      "flex items-center justify-start w-full p-3 text-sm font-medium rounded-md transition-colors",
+                      "hover:text-white hover:bg-dashboard-cardHover",
+                      location.pathname === link.href 
+                        ? "bg-dashboard-accent1 text-white" 
+                        : "text-dashboard-text"
+                    )}
+                  >
+                    <span className="mr-3">{link.icon}</span>
+                    <span>{link.title}</span>
+                  </Link>
+                ))}
+              </nav>
             </div>
           </div>
         </div>
-      </ScrollArea>
-      <div className="p-4 border-t border-dashboard-cardBorder space-y-4">
-        <Button
-          variant="outline"
-          className="w-full justify-start bg-[#9b87f5] hover:bg-[#7E69AB] text-white"
-          onClick={handleLogoutClick}
-        >
-          Sign Out
-        </Button>
+        
+        <div className="sticky bottom-0 p-4 mt-auto border-t border-dashboard-cardBorder bg-dashboard-card">
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-start bg-dashboard-accent1 text-white hover:bg-dashboard-accent1/80"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Sign out</span>
+          </Button>
+        </div>
       </div>
     </div>
   );
-});
-
-SidePanel.displayName = "SidePanel";
+};
 
 export default SidePanel;

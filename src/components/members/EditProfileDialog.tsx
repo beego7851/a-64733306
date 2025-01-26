@@ -4,12 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Member } from "@/types/member";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { ResponsiveFormLayout } from "@/components/ui/responsive-form-layout";
 import {
   Form,
   FormControl,
@@ -22,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { formatDate } from "@/lib/dateFormat";
 
 const formSchema = z.object({
   full_name: z.string().min(2, {
@@ -44,10 +39,6 @@ const formSchema = z.object({
   postcode: z.string().min(5, {
     message: "Postcode must be at least 5 characters.",
   }),
-  membership_type: z.string().optional(),
-  status: z.string().optional(),
-  collector: z.string().optional(),
-  member_number: z.string().optional(),
 });
 
 interface EditProfileDialogProps {
@@ -75,10 +66,6 @@ const EditProfileDialog = ({
       address: member.address || "",
       town: member.town || "",
       postcode: member.postcode || "",
-      membership_type: member.membership_type || "",
-      status: member.status || "",
-      collector: member.collector || "",
-      member_number: member.member_number || "",
     },
   });
 
@@ -114,35 +101,36 @@ const EditProfileDialog = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-3xl bg-dashboard-card border border-dashboard-cardBorder">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold text-dashboard-accent1">Edit Profile</DialogTitle>
-        </DialogHeader>
-
-        {/* Member Status Section with enhanced styling */}
-        <div className="p-6 rounded-lg bg-dashboard-cardHover/50 border border-dashboard-cardBorder shadow-sm">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit Profile"
+      maxWidth="2xl"
+    >
+      <div className="space-y-6">
+        {/* Member Status Section */}
+        <div className="p-4 sm:p-6 rounded-lg bg-dashboard-cardHover/50 border border-dashboard-cardBorder">
+          <ResponsiveFormLayout spacing="tight">
+            <div className="flex justify-between items-center">
               <span className="text-dashboard-muted">Status</span>
               <span className="text-dashboard-accent1 font-medium">{member.status}</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-dashboard-muted">Collector</span>
               <span className="text-dashboard-accent1 font-medium">{member.collector}</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-dashboard-muted">Member Number</span>
               <span className="text-xl font-bold text-[#9b87f5]">{member.member_number}</span>
             </div>
-          </div>
+          </ResponsiveFormLayout>
         </div>
 
-        <Separator className="my-6 bg-dashboard-cardBorder" />
+        <Separator className="bg-dashboard-cardBorder" />
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ResponsiveFormLayout columns={2}>
               <FormField
                 control={form.control}
                 name="full_name"
@@ -150,7 +138,7 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Name</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -166,8 +154,8 @@ const EditProfileDialog = ({
                       <Input 
                         {...field} 
                         type="date" 
-                        value={field.value || ''}
-                        className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" 
+                        value={field.value || ''} 
+                        className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" 
                       />
                     </FormControl>
                     <FormMessage />
@@ -181,7 +169,7 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Email</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} type="email" className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -194,7 +182,7 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Phone</FormLabel>
                     <FormControl>
-                      <Input {...field} type="tel" className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} type="tel" className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -207,7 +195,7 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Address</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -220,7 +208,7 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Town</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -233,34 +221,35 @@ const EditProfileDialog = ({
                   <FormItem>
                     <FormLabel className="text-dashboard-text">Postcode</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text focus:border-dashboard-accent1" />
+                      <Input {...field} className="bg-dashboard-dark border-dashboard-cardBorder text-dashboard-text" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-            <div className="flex justify-end space-x-4 pt-6">
+            </ResponsiveFormLayout>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="bg-dashboard-dark hover:bg-dashboard-cardHover hover:text-white border-dashboard-cardBorder transition-all duration-200"
+                className="bg-dashboard-dark hover:bg-dashboard-cardHover hover:text-white border-dashboard-cardBorder"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-[#9b87f5] text-white hover:bg-[#7E69AB] transition-all duration-200"
+                className="bg-[#9b87f5] text-white hover:bg-[#7E69AB]"
               >
                 {isSubmitting ? "Saving..." : "Save changes"}
               </Button>
             </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ResponsiveDialog>
   );
 };
 

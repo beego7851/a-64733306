@@ -1,208 +1,127 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { Payment } from "./payment-history/types";
-import { CollectorPaymentsList } from "./payment-history/CollectorPaymentsList";
-import { MemberPaymentsList } from "./payment-history/MemberPaymentsList";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { RolePermissions } from "@/types/roles";
+import RoleBasedRenderer from "./RoleBasedRenderer";
+import { format } from 'date-fns';
+import { Loader2 } from 'lucide-react';
 
-const PaymentHistoryTable = () => {
-  const { toast } = useToast();
+interface PaymentHistoryTableProps {
+  rolePermissions: RolePermissions;
+}
 
-  const { data: userRole } = useQuery({
-    queryKey: ['user-role'],
+const PaymentHistoryTable = ({ rolePermissions }: PaymentHistoryTableProps) => {
+  const { data: payments, isLoading, isError } = useQuery({
+    queryKey: ['paymentHistory'],
     queryFn: async () => {
+      console.log('Fetching payment history for current user...');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error('No user logged in');
+
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('No user found in role check');
-        return null;
-      }
-
-      const { data: roleData, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching user role:', error);
-        return null;
-      }
-
-      console.log('User role data:', roleData);
-      return roleData?.role;
-    },
-  });
-
-  const { data: payments = [], isLoading, error } = useQuery({
-    queryKey: ['payment-history', userRole],
-    queryFn: async () => {
-      console.log('Starting payment history fetch...');
-      console.log('User role:', userRole);
-      
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        throw new Error('Failed to get session');
-      }
-      
-      if (!session?.user) {
-        console.error('No user session found');
-        throw new Error('Please log in to view payment history');
-      }
-
-      const memberNumber = session.user.user_metadata.member_number;
+      const memberNumber = user?.user_metadata?.member_number;
       
       if (!memberNumber) {
         console.error('No member number found in user metadata');
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Member number not found in user profile",
-        });
         throw new Error('Member number not found');
       }
 
-      try {
-        if (userRole === 'collector') {
-          console.log('Fetching collector payments for member number:', memberNumber);
-          
-          const { data: collectorData, error: collectorError } = await supabase
-            .from('members_collectors')
-            .select('id')
-            .eq('member_number', memberNumber)
-            .maybeSingle();
+      // Fetch only active payment records from payment_requests table
+      const { data, error } = await supabase
+        .from('payment_requests')
+        .select('*')
+        .eq('member_number', memberNumber)
+        .neq('status', 'deleted') // Exclude deleted records
+        .order('created_at', { ascending: false });
 
-          if (collectorError) {
-            console.error('Error fetching collector:', collectorError);
-            throw new Error('Failed to fetch collector information');
-          }
-
-          if (!collectorData) {
-            console.error('No collector found for member number:', memberNumber);
-            return [];
-          }
-
-          console.log('Found collector:', collectorData);
-
-          const { data: paymentsData, error: paymentsError } = await supabase
-            .from('payment_requests')
-            .select(`
-              *,
-              members!payment_requests_member_id_fkey (
-                full_name,
-                member_number
-              )
-            `)
-            .eq('collector_id', collectorData.id)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false });
-
-          if (paymentsError) {
-            console.error('Error fetching payments:', paymentsError);
-            throw new Error('Failed to fetch payment requests');
-          }
-
-          console.log('Collector payments:', paymentsData);
-          
-          return paymentsData?.map(payment => ({
-            id: payment.id,
-            date: payment.created_at,
-            type: payment.payment_type,
-            amount: payment.amount,
-            status: payment.status,
-            member_name: payment.members?.full_name,
-            member_number: payment.members?.member_number,
-            payment_number: payment.payment_number
-          })) || [];
-        }
-        
-        console.log('Fetching member payments for:', memberNumber);
-        const { data, error: paymentsError } = await supabase
-          .from('payment_requests')
-          .select(`
-            *,
-            members!payment_requests_member_id_fkey (
-              full_name,
-              member_number
-            )
-          `)
-          .eq('member_number', memberNumber)
-          .order('created_at', { ascending: false });
-
-        if (paymentsError) {
-          console.error('Error fetching payment requests:', paymentsError);
-          throw new Error('Failed to fetch payment history');
-        }
-
-        console.log('Member payments:', data);
-        return data?.map(payment => ({
-          id: payment.id,
-          date: payment.created_at,
-          type: payment.payment_type,
-          amount: payment.amount,
-          status: payment.status,
-          member_name: payment.members?.full_name,
-          member_number: payment.members?.member_number,
-          payment_number: payment.payment_number
-        })) || [];
-      } catch (error: any) {
-        console.error('Error in payment history fetch:', error);
-        throw new Error(error.message || 'Failed to fetch payment history');
+      if (error) {
+        console.error('Error fetching payment history:', error);
+        throw error;
       }
+      
+      console.log('Fetched payment records:', data);
+      return data;
     },
-    retry: 1,
-    retryDelay: 1000
   });
 
   if (isLoading) {
     return (
-      <div className="glass-card p-4">
-        <h3 className="text-xl font-semibold mb-4 text-dashboard-highlight">Payment History</h3>
-        <div className="flex items-center gap-2 text-dashboard-highlight">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Loading payment history...</span>
-        </div>
+      <div className="w-full p-8 flex justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-dashboard-accent1" />
       </div>
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
-      <div className="glass-card p-4">
-        <h3 className="text-xl font-semibold mb-4 text-dashboard-highlight">Payment History</h3>
-        <div className="flex items-center gap-2 text-red-500">
-          <AlertCircle className="h-4 w-4" />
-          <span>Error: {error.message}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!payments.length) {
-    return (
-      <div className="glass-card p-4">
-        <h3 className="text-xl font-semibold mb-4 text-dashboard-highlight">Payment History</h3>
-        <div className="flex items-center gap-2 text-dashboard-highlight">
-          <AlertCircle className="h-4 w-4" />
-          <span>No payment history found. Please check if you have any pending payments or contact your collector for assistance.</span>
-        </div>
+      <div className="text-dashboard-error p-4 text-center">
+        Error loading payment history
       </div>
     );
   }
 
   return (
-    <div className="glass-card p-4">
-      <h3 className="text-xl font-semibold mb-4 text-dashboard-highlight">
-        {userRole === 'collector' ? 'Pending Payments - Members' : 'Payment History'}
-      </h3>
-      
-      {userRole === 'collector' ? (
-        <CollectorPaymentsList payments={payments} />
-      ) : (
-        <MemberPaymentsList payments={payments} />
-      )}
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium text-dashboard-accent1">Payment History</h3>
+      <div className="rounded-lg border border-dashboard-cardBorder bg-dashboard-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-dashboard-accent2">Date</TableHead>
+              <TableHead className="text-dashboard-accent2">Payment Type</TableHead>
+              <TableHead className="text-dashboard-accent2">Amount</TableHead>
+              <TableHead className="text-dashboard-accent2">Status</TableHead>
+              <TableHead className="text-dashboard-accent2">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {payments && payments.length > 0 ? (
+              payments.map((payment) => (
+                <TableRow key={payment.id} className="hover:bg-dashboard-cardHover">
+                  <TableCell className="text-dashboard-text">
+                    {format(new Date(payment.created_at), 'dd/MM/yyyy')}
+                  </TableCell>
+                  <TableCell className="text-dashboard-text capitalize">
+                    {payment.payment_type}
+                  </TableCell>
+                  <TableCell className="text-dashboard-accent3">
+                    £{payment.amount.toFixed(2)}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      payment.status === 'completed' 
+                        ? 'bg-dashboard-success/20 text-dashboard-success'
+                        : payment.status === 'pending'
+                        ? 'bg-dashboard-warning/20 text-dashboard-warning'
+                        : 'bg-dashboard-error/20 text-dashboard-error'
+                    }`}>
+                      {payment.status}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <RoleBasedRenderer allowedRoles={['admin']}>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-dashboard-accent1 hover:text-dashboard-accent1/80"
+                      >
+                        View Details
+                      </Button>
+                    </RoleBasedRenderer>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-dashboard-muted py-4">
+                  No payment history available
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };

@@ -26,28 +26,44 @@ export function useAuthSession() {
       await queryClient.resetQueries();
       await queryClient.clear();
       
+      // Clear storage first
       if (!skipStorageClear) {
         console.log('[Auth] Clearing local storage...');
         localStorage.clear();
         sessionStorage.clear();
       }
-      
-      console.log('[Auth] Signing out from Supabase...');
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      console.log('[Auth] Sign out successful');
+
+      // Clear session state before signing out
       setSession(null);
+
+      try {
+        // Attempt to sign out from Supabase
+        console.log('[Auth] Signing out from Supabase...');
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          // Log the error but continue with the logout process
+          console.warn('[Auth] Non-critical error during sign out:', error);
+        } else {
+          console.log('[Auth] Sign out successful');
+        }
+      } catch (signOutError: any) {
+        // Log but don't throw the error
+        console.warn('[Auth] Non-critical error during sign out:', signOutError);
+      }
+
+      // Always redirect to login
       window.location.href = '/login';
       
     } catch (error: any) {
       console.error('[Auth] Error during sign out:', error);
+      // Even if there's an error, clear storage and redirect
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/login';
+      
       toast({
-        title: "Error signing out",
-        description: error.message.includes('502') 
-          ? "Failed to connect to the server. Please check your network connection and try again."
-          : error.message,
-        variant: "destructive",
+        title: "Signed Out",
+        description: "You have been signed out.",
       });
     } finally {
       setIsLoggingOut(false);

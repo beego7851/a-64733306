@@ -4,6 +4,7 @@ import { Accordion } from "@/components/ui/accordion";
 import MemberCard from './MemberCard';
 import PaginationControls from '../ui/pagination/PaginationControls';
 import { Loader2 } from "lucide-react";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 interface MembersListContentProps {
   members: Member[];
@@ -26,6 +27,15 @@ const MembersListContent = ({
   onEditClick,
   onDeleteClick,
 }: MembersListContentProps) => {
+  const { userRoles } = useRoleAccess();
+  
+  const rolePermissions = {
+    isAdmin: userRoles?.includes('admin') || false,
+    isCollector: userRoles?.includes('collector') || false,
+    isMember: userRoles?.includes('member') || false,
+    hasMultipleRoles: (userRoles?.length || 0) > 1
+  };
+
   return (
     <div className="space-y-4">
       <ScrollArea className="h-[calc(100vh-16rem)] w-full rounded-md">
@@ -42,6 +52,7 @@ const MembersListContent = ({
                 userRole={userRole}
                 onEditClick={() => onEditClick(member.id)}
                 onDeleteClick={() => onDeleteClick(member.id)}
+                rolePermissions={rolePermissions}
               />
             ))}
           </Accordion>

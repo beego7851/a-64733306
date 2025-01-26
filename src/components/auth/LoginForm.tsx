@@ -3,6 +3,7 @@ import MemberNumberInput from './login/MemberNumberInput';
 import PasswordInput from './login/PasswordInput';
 import LoginButton from './login/LoginButton';
 import LegalLinks from './login/LegalLinks';
+import { ForgotPasswordButton } from './login/ForgotPasswordButton';
 
 const LoginForm = () => {
   const { memberNumber, password, setMemberNumber, setPassword, loading, handleLogin } = useLoginForm();
@@ -22,8 +23,14 @@ const LoginForm = () => {
           loading={loading}
         />
 
-        <LoginButton loading={loading} />
-        <LegalLinks />
+        <div className="space-y-4">
+          <LoginButton loading={loading} />
+          <ForgotPasswordButton />
+        </div>
+        
+        <div className="flex justify-end">
+          <LegalLinks />
+        </div>
       </form>
     </div>
   );

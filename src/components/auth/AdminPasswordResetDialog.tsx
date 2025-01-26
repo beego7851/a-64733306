@@ -17,19 +17,6 @@ interface AdminPasswordResetDialogProps {
   memberName: string;
 }
 
-type PasswordResetResponse = {
-  success: boolean;
-  message?: string;
-  error?: string;
-  code?: string;
-  details?: {
-    timestamp: string;
-    member_number?: string;
-    has_current_password?: boolean;
-    [key: string]: any;
-  };
-}
-
 const AdminPasswordResetDialog = ({
   open,
   onOpenChange,
@@ -66,7 +53,7 @@ const AdminPasswordResetDialog = ({
 
       const { data, error } = await supabase.rpc('handle_password_reset', {
         member_number: memberNumber,
-        new_password: memberNumber,
+        new_password: memberNumber, // Using member number as temporary password
         admin_user_id: userData.user.id,
         ip_address: window.location.hostname,
         user_agent: navigator.userAgent,
@@ -90,7 +77,7 @@ const AdminPasswordResetDialog = ({
         throw error;
       }
 
-      const response = data as PasswordResetResponse;
+      const response = data as { success: boolean; message?: string; error?: string; code?: string };
       
       if (!response?.success) {
         console.error("[AdminPasswordReset] Reset failed", {

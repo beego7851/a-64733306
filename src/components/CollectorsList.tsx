@@ -47,7 +47,7 @@ const CollectorsList = () => {
       });
       
       // Trigger role sync after role update
-      await syncRolesMutation.mutateAsync();
+      await syncRolesMutation.mutateAsync(0);
       
       toast({
         title: "Role updated",
@@ -72,7 +72,7 @@ const CollectorsList = () => {
       });
       
       // Trigger role sync after enhanced role update
-      await syncRolesMutation.mutateAsync();
+      await syncRolesMutation.mutateAsync(0);
       
       toast({
         title: "Enhanced role updated",
@@ -89,7 +89,7 @@ const CollectorsList = () => {
 
   const handleSync = async () => {
     try {
-      await syncRolesMutation.mutateAsync();
+      await syncRolesMutation.mutateAsync(0);
       toast({
         title: "Sync completed",
         description: "Roles have been synchronized successfully",

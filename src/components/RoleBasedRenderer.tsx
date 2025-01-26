@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import type { Database } from "@/integrations/supabase/types";
 
@@ -19,21 +19,26 @@ const RoleBasedRenderer = ({
 }: RoleBasedRendererProps) => {
   const { hasRole, hasAnyRole } = useRoleAccess();
 
-  if (!allowedRoles.length) {
-    console.log('[RoleRenderer] No roles required, rendering children');
-    return <>{children}</>;
-  }
+  // Memoize access check to prevent unnecessary re-renders
+  const hasAccess = useMemo(() => {
+    if (!allowedRoles.length) {
+      console.log('[RoleRenderer] No roles required, rendering children');
+      return true;
+    }
 
-  const hasAccess = requireAllRoles
-    ? allowedRoles.every(role => hasRole(role))
-    : hasAnyRole(allowedRoles);
+    const access = requireAllRoles
+      ? allowedRoles.every(role => hasRole(role))
+      : hasAnyRole(allowedRoles);
 
-  console.log('[RoleRenderer] Access check:', {
-    allowedRoles,
-    requireAllRoles,
-    hasAccess,
-    timestamp: new Date().toISOString()
-  });
+    console.log('[RoleRenderer] Access check:', {
+      allowedRoles,
+      requireAllRoles,
+      hasAccess: access,
+      timestamp: new Date().toISOString()
+    });
+
+    return access;
+  }, [allowedRoles, requireAllRoles, hasRole, hasAnyRole]);
 
   return <>{hasAccess ? children : fallback}</>;
 };
