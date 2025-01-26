@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Lock, Key } from "lucide-react";
+import { Lock, Key, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import AdminPasswordResetDialog from '@/components/auth/AdminPasswordResetDialog';
@@ -30,6 +30,7 @@ const PasswordManagementSection = ({
 }: PasswordManagementSectionProps) => {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [lastLoginAt, setLastLoginAt] = useState<Date | null>(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
 
@@ -90,6 +91,32 @@ const PasswordManagementSection = ({
     }
   };
 
+  const handleResetLoginState = async () => {
+    try {
+      setIsResetting(true);
+      const { data, error } = await supabase.rpc('reset_user_login_state', {
+        p_member_number: memberNumber
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success("Login state reset successfully", {
+          description: `Reset completed for ${memberName}`
+        });
+      } else {
+        throw new Error(data.error || 'Failed to reset login state');
+      }
+    } catch (error: any) {
+      console.error('Failed to reset login state:', error);
+      toast.error("Failed to reset login state", {
+        description: error.message
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Status Section */}
@@ -113,7 +140,7 @@ const PasswordManagementSection = ({
       />
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {lockedUntil && new Date(lockedUntil) > new Date() && (
           <Button 
             variant="outline"
@@ -135,6 +162,17 @@ const PasswordManagementSection = ({
         >
           <Key className="w-4 h-4 mr-2" />
           Reset Password
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleResetLoginState}
+          disabled={isResetting}
+          className="bg-dashboard-card hover:bg-dashboard-cardHover"
+        >
+          <RotateCw className="w-4 h-4 mr-2" />
+          {isResetting ? 'Resetting...' : 'Reset Login State'}
         </Button>
 
         <MagicLinkButton 

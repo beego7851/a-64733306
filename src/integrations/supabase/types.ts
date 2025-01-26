@@ -1471,6 +1471,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      reset_user_login_state: {
+        Args: {
+          p_member_number: string
+        }
+        Returns: Json
+      }
       restore_from_backup: {
         Args: {
           backup_data: Json
