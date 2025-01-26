@@ -101,7 +101,7 @@ const PasswordManagementSection = ({
 
       if (error) throw error;
 
-      const result = data as PasswordChangeData;
+      const result = data as unknown as PasswordChangeData;
       
       if (result.success) {
         toast.success("Login state reset successfully", {
@@ -150,9 +150,9 @@ const PasswordManagementSection = ({
             size="sm"
             onClick={handleUnlockAccount}
             disabled={isUnlocking}
-            className="bg-dashboard-card hover:bg-dashboard-cardHover"
+            className="bg-dashboard-card hover:bg-dashboard-cardHover border-dashboard-cardBorder hover:border-dashboard-cardBorderHover text-dashboard-text"
           >
-            <Lock className="w-4 h-4 mr-2" />
+            <Lock className="w-4 h-4 mr-2 text-dashboard-accent1" />
             {isUnlocking ? 'Unlocking...' : 'Unlock'}
           </Button>
         )}
@@ -161,9 +161,9 @@ const PasswordManagementSection = ({
           variant="outline"
           size="sm"
           onClick={() => setShowResetDialog(true)}
-          className="bg-dashboard-card hover:bg-dashboard-cardHover"
+          className="bg-dashboard-card hover:bg-dashboard-cardHover border-dashboard-cardBorder hover:border-dashboard-cardBorderHover text-dashboard-text"
         >
-          <Key className="w-4 h-4 mr-2" />
+          <Key className="w-4 h-4 mr-2 text-dashboard-accent1" />
           Reset Password
         </Button>
 
@@ -172,9 +172,9 @@ const PasswordManagementSection = ({
           size="sm"
           onClick={handleResetLoginState}
           disabled={isResetting}
-          className="bg-dashboard-card hover:bg-dashboard-cardHover"
+          className="bg-dashboard-card hover:bg-dashboard-cardHover border-dashboard-cardBorder hover:border-dashboard-cardBorderHover text-dashboard-text"
         >
-          <RotateCw className="w-4 h-4 mr-2" />
+          <RotateCw className="w-4 h-4 mr-2 text-dashboard-accent1" />
           {isResetting ? 'Resetting...' : 'Reset Login State'}
         </Button>
 
