@@ -1376,6 +1376,18 @@ export type Database = {
           details: Json
         }[]
       }
+      handle_email_sync_batched: {
+        Args: {
+          batch_size?: number
+        }
+        Returns: {
+          status: string
+          total_processed: number
+          successful: number
+          failed: number
+          details: Json
+        }[]
+      }
       handle_failed_login: {
         Args: {
           member_number: string
