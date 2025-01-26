@@ -9,6 +9,7 @@ import SecurityHealthPanel from './SecurityHealthPanel';
 import StatusIndicators from './StatusIndicators';
 import AdminPasswordControls from './AdminPasswordControls';
 import { PasswordChangeData } from '@/components/auth/password/types';
+import { DebugConsole } from '@/components/logs/DebugConsole';
 
 interface PasswordManagementSectionProps {
   memberId: string;
@@ -34,50 +35,57 @@ const PasswordManagementSection = ({
   const [isResetting, setIsResetting] = useState(false);
   const [lastLoginAt, setLastLoginAt] = useState<Date | null>(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+  const addLog = (message: string) => {
+    setDebugLogs(prev => [...prev, `${new Date().toISOString()} - ${message}`]);
+  };
 
   useEffect(() => {
     const fetchSessionInfo = async () => {
       try {
+        addLog(`Fetching session info for member ${memberNumber}`);
         const { data: sessionData, error } = await supabase
           .rpc('get_user_session_info', { user_id_param: memberId });
 
         if (error) {
+          addLog(`Error fetching session info: ${error.message}`);
           console.error('Error fetching session info:', error);
           return;
         }
 
         if (sessionData && sessionData[0]) {
+          addLog(`Session info retrieved successfully`);
           setLastLoginAt(sessionData[0].last_login ? new Date(sessionData[0].last_login) : null);
           setIsSessionActive(sessionData[0].is_active || false);
         }
       } catch (error) {
+        addLog(`Unexpected error in fetchSessionInfo: ${error}`);
         console.error('Error fetching session info:', error);
       }
     };
 
     fetchSessionInfo();
-  }, [memberId]);
+  }, [memberId, memberNumber]);
 
   const handleUnlockAccount = async () => {
     try {
-      console.log('Unlocking account for member:', {
-        memberNumber,
-        memberName,
-        timestamp: new Date().toISOString()
-      });
-
+      addLog(`Starting account unlock for member ${memberNumber}`);
       setIsUnlocking(true);
+      
       const { error } = await supabase.rpc('reset_failed_login', {
         member_number: memberNumber
       });
 
       if (error) throw error;
 
+      addLog('Account unlock successful');
       toast.success("Account has been unlocked", {
         description: `Successfully unlocked account for ${memberName}`
       });
 
     } catch (error: any) {
+      addLog(`Failed to unlock account: ${error.message}`);
       console.error('Failed to unlock account:', {
         error,
         memberNumber,
@@ -94,23 +102,32 @@ const PasswordManagementSection = ({
 
   const handleResetLoginState = async () => {
     try {
+      addLog(`Starting login state reset for member ${memberNumber}`);
       setIsResetting(true);
+      
       const { data, error } = await supabase.rpc('reset_user_login_state', {
         p_member_number: memberNumber
       });
 
-      if (error) throw error;
+      if (error) {
+        addLog(`Error in reset_user_login_state RPC: ${error.message}`);
+        throw error;
+      }
 
       const result = data as unknown as PasswordChangeData;
+      addLog(`RPC response: ${JSON.stringify(result)}`);
       
       if (result.success) {
+        addLog('Login state reset successful');
         toast.success("Login state reset successfully", {
           description: `Reset completed for ${memberName}`
         });
       } else {
+        addLog(`Reset failed: ${result.error}`);
         throw new Error(result.error || 'Failed to reset login state');
       }
     } catch (error: any) {
+      addLog(`Error in handleResetLoginState: ${error.message}`);
       console.error('Failed to reset login state:', error);
       toast.error("Failed to reset login state", {
         description: error.message
@@ -183,6 +200,9 @@ const PasswordManagementSection = ({
           memberName={memberName}
         />
       </div>
+
+      {/* Debug Console */}
+      <DebugConsole logs={debugLogs} />
 
       {/* Admin Controls */}
       <AdminPasswordControls
