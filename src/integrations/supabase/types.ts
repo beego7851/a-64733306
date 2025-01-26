@@ -1369,6 +1369,13 @@ export type Database = {
           is_active: boolean
         }[]
       }
+      handle_email_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          status: string
+          details: Json
+        }[]
+      }
       handle_failed_login: {
         Args: {
           member_number: string
