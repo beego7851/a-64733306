@@ -8,6 +8,7 @@ import MagicLinkButton from '@/components/auth/password/MagicLinkButton';
 import SecurityHealthPanel from './SecurityHealthPanel';
 import StatusIndicators from './StatusIndicators';
 import AdminPasswordControls from './AdminPasswordControls';
+import { PasswordChangeData } from '@/components/auth/password/types';
 
 interface PasswordManagementSectionProps {
   memberId: string;
@@ -100,12 +101,14 @@ const PasswordManagementSection = ({
 
       if (error) throw error;
 
-      if (data.success) {
+      const result = data as PasswordChangeData;
+      
+      if (result.success) {
         toast.success("Login state reset successfully", {
           description: `Reset completed for ${memberName}`
         });
       } else {
-        throw new Error(data.error || 'Failed to reset login state');
+        throw new Error(result.error || 'Failed to reset login state');
       }
     } catch (error: any) {
       console.error('Failed to reset login state:', error);
