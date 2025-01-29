@@ -82,16 +82,27 @@ export const useLoginForm = () => {
         verified: member.verified
       });
 
+      // Construct email - ensure lowercase and proper format
       const email = `${memberNumber.toLowerCase()}@temp.com`;
-      console.log('[Login] Attempting sign in with:', { email });
+      console.log('[Login] Attempting sign in with:', { 
+        email,
+        memberNumber,
+        hashedPassword: password ? '[REDACTED]' : 'missing'
+      });
       
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password,
+        password: password.trim(), // Ensure password is trimmed
       });
 
       if (signInError) {
-        console.error('[Login] Sign in error:', signInError);
+        console.error('[Login] Sign in error:', {
+          error: signInError,
+          code: signInError.status,
+          message: signInError.message,
+          email
+        });
+        
         // Handle failed login attempt
         const { data: failedLoginData, error: failedLoginError } = await supabase
           .rpc('handle_failed_login', { member_number: memberNumber });
@@ -108,7 +119,12 @@ export const useLoginForm = () => {
           throw new Error(`Account locked. Too many failed attempts. Please try again after ${typedFailedLoginData.lockout_duration}`);
         }
 
-        throw new Error('Invalid member number or password');
+        // Provide more specific error message
+        if (signInError.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid member number or password. Please check your credentials and try again.');
+        }
+
+        throw signInError;
       }
 
       console.log('[Login] Sign in successful, resetting failed attempts');
