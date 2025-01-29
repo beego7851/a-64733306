@@ -23,7 +23,11 @@ export const useLoginForm = () => {
     try {
       setLoading(true);
       const isMobile = window.innerWidth <= 768;
-      console.log('Starting login process on device type:', isMobile ? 'mobile' : 'desktop');
+      console.log('[Login] Starting login process', { 
+        deviceType: isMobile ? 'mobile' : 'desktop',
+        memberNumber,
+        timestamp: new Date().toISOString()
+      });
 
       // Check maintenance mode first
       const { data: maintenanceData, error: maintenanceError } = await supabase
@@ -32,13 +36,13 @@ export const useLoginForm = () => {
         .single();
 
       if (maintenanceError) {
-        console.error('Error checking maintenance mode:', maintenanceError);
+        console.error('[Login] Error checking maintenance mode:', maintenanceError);
         throw new Error('Unable to verify system status');
       }
 
       // If in maintenance, verify if user is admin before proceeding
       if (maintenanceData?.is_enabled) {
-        console.log('System in maintenance mode, checking admin credentials');
+        console.log('[Login] System in maintenance mode, checking admin credentials');
         const email = `${memberNumber.toLowerCase()}@temp.com`;
         
         // Try admin login
@@ -48,7 +52,7 @@ export const useLoginForm = () => {
         });
 
         if (signInError) {
-          console.log('Login failed during maintenance mode');
+          console.log('[Login] Login failed during maintenance mode');
           throw new Error(maintenanceData.message || 'System is temporarily offline for maintenance');
         }
 
@@ -61,18 +65,25 @@ export const useLoginForm = () => {
         const isAdmin = roles?.some(r => r.role === 'admin');
         
         if (!isAdmin) {
-          console.log('Non-admin access attempted during maintenance');
+          console.log('[Login] Non-admin access attempted during maintenance');
           throw new Error(maintenanceData.message || 'System is temporarily offline for maintenance');
         }
 
-        console.log('Admin access granted during maintenance mode');
+        console.log('[Login] Admin access granted during maintenance mode');
       }
 
       // Regular login flow
+      console.log('[Login] Starting member verification');
       const member = await verifyMember(memberNumber);
+      console.log('[Login] Member verification successful', {
+        memberNumber,
+        hasAuthId: !!member.auth_user_id,
+        status: member.status,
+        verified: member.verified
+      });
+
       const email = `${memberNumber.toLowerCase()}@temp.com`;
-      
-      console.log('Attempting sign in with:', { email });
+      console.log('[Login] Attempting sign in with:', { email });
       
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -80,13 +91,18 @@ export const useLoginForm = () => {
       });
 
       if (signInError) {
+        console.error('[Login] Sign in error:', signInError);
         // Handle failed login attempt
         const { data: failedLoginData, error: failedLoginError } = await supabase
           .rpc('handle_failed_login', { member_number: memberNumber });
 
-        if (failedLoginError) throw failedLoginError;
+        if (failedLoginError) {
+          console.error('[Login] Failed login handling error:', failedLoginError);
+          throw failedLoginError;
+        }
 
         const typedFailedLoginData = failedLoginData as FailedLoginResponse;
+        console.log('[Login] Failed login response:', typedFailedLoginData);
 
         if (typedFailedLoginData.locked) {
           throw new Error(`Account locked. Too many failed attempts. Please try again after ${typedFailedLoginData.lockout_duration}`);
@@ -95,6 +111,7 @@ export const useLoginForm = () => {
         throw new Error('Invalid member number or password');
       }
 
+      console.log('[Login] Sign in successful, resetting failed attempts');
       // Reset failed login attempts on successful login
       await supabase.rpc('reset_failed_login', { member_number: memberNumber });
 
@@ -106,6 +123,7 @@ export const useLoginForm = () => {
         .maybeSingle();
 
       if (memberData?.password_reset_required) {
+        console.log('[Login] Password reset required');
         toast({
           title: "Password reset required",
           description: "Please set a new password for your account",
@@ -114,23 +132,28 @@ export const useLoginForm = () => {
         return;
       }
 
+      console.log('[Login] Clearing query cache');
       await queryClient.cancelQueries();
       await queryClient.clear();
 
-      console.log('Verifying session...');
+      console.log('[Login] Verifying session');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        console.error('Session verification error:', sessionError);
+        console.error('[Login] Session verification error:', sessionError);
         throw sessionError;
       }
 
       if (!session) {
-        console.error('No session established');
+        console.error('[Login] No session established');
         throw new Error('Failed to establish session');
       }
 
-      console.log('Session established successfully');
+      console.log('[Login] Session established successfully', {
+        userId: session.user.id,
+        timestamp: new Date().toISOString()
+      });
+      
       await queryClient.invalidateQueries();
 
       toast({
@@ -139,12 +162,19 @@ export const useLoginForm = () => {
       });
 
       if (isMobile) {
+        console.log('[Login] Redirecting (mobile):', { to: '/' });
         window.location.href = '/';
       } else {
+        console.log('[Login] Navigating (desktop):', { to: '/' });
         navigate('/', { replace: true });
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('[Login] Error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        timestamp: new Date().toISOString()
+      });
       
       toast({
         title: "Login failed",
