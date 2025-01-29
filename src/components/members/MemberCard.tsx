@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Member } from '@/types/member';
 import { Collector } from "@/types/collector";
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -11,10 +10,8 @@ import {
 } from '@/components/ui/accordion';
 import { useQuery } from '@tanstack/react-query';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
-import { format } from 'date-fns';
 import PaymentDialog from './PaymentDialog';
 import NotesDialog from './notes/NotesDialog';
-import NotesList from './notes/NotesList';
 import EditProfileDialog from './EditProfileDialog';
 import {
   AlertDialog,
@@ -26,10 +23,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import MemberPasswordSection from './card/MemberPasswordSection';
 import MemberPaymentHistory from './card/MemberPaymentHistory';
 import LoginDiagnosticsPanel from './diagnostics/LoginDiagnosticsPanel';
+import { ContactInfoSection } from './card/ContactInfoSection';
+import { AddressSection } from './card/AddressSection';
+import { MemberActions } from './card/MemberActions';
+import { NotesSection } from './card/NotesSection';
 
 interface MemberCardProps {
   member: Member;
@@ -50,9 +52,7 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const { toast } = useToast();
   const { hasRole } = useRoleAccess();
-  const isCollector = hasRole('collector');
   const canModify = userRole === 'admin' || userRole === 'collector';
 
   const { data: collectorInfo } = useQuery({
@@ -77,19 +77,13 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
     queryFn: async () => {
       if (!showDiagnostics) return null;
       
-      console.log('Fetching diagnostics for member:', member.member_number);
-      
       try {
         const { data: roles, error: rolesError } = await supabase
           .from('user_roles')
           .select('*')
           .eq('user_id', member.auth_user_id);
 
-        if (rolesError) {
-          console.error('Error fetching roles:', rolesError);
-          throw rolesError;
-        }
-        console.log('Found roles:', roles);
+        if (rolesError) throw rolesError;
 
         const { data: auditLogs, error: auditError } = await supabase
           .from('audit_logs')
@@ -98,11 +92,7 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
           .order('timestamp', { ascending: false })
           .limit(10);
 
-        if (auditError) {
-          console.error('Error fetching audit logs:', auditError);
-          throw auditError;
-        }
-        console.log('Found audit logs:', auditLogs?.length || 0);
+        if (auditError) throw auditError;
 
         const transformedLogs = (auditLogs || []).map(log => ({
           timestamp: log.timestamp,
@@ -122,11 +112,7 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
           .order('created_at', { ascending: false })
           .limit(5);
 
-        if (paymentsError) {
-          console.error('Error fetching payments:', paymentsError);
-          throw paymentsError;
-        }
-        console.log('Found payments:', payments?.length || 0);
+        if (paymentsError) throw paymentsError;
 
         return {
           roles: roles || [],
@@ -141,20 +127,11 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
         };
       } catch (error) {
         console.error('Error in diagnostics:', error);
-        toast({
-          title: "Error running diagnostics",
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-          variant: "destructive",
-        });
         return null;
       }
     },
     enabled: showDiagnostics
   });
-
-  const handlePaymentClick = () => {
-    setIsPaymentDialogOpen(true);
-  };
 
   return (
     <AccordionItem value={member.id} className="border-b border-white/10">
@@ -164,63 +141,20 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
             <h3 className="text-xl font-semibold text-dashboard-accent1">{member.full_name}</h3>
             <p className="text-base text-dashboard-accent2">Member Number: {member.member_number}</p>
           </div>
-          {(canModify || userRole === 'admin') && (
-            <div className="flex items-center space-x-2">
-              <Button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsEditProfileOpen(true);
-                }} 
-                className="bg-dashboard-accent2 hover:bg-dashboard-accent2/80"
-              >
-                Edit
-              </Button>
-              {userRole === 'admin' && (
-                <Button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowDeleteConfirm(true);
-                  }} 
-                  variant="destructive"
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              <Button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePaymentClick();
-                }} 
-                className="bg-dashboard-accent3 hover:bg-dashboard-accent3/80"
-              >
-                Pay
-              </Button>
-            </div>
-          )}
+          <MemberActions 
+            onEdit={() => setIsEditProfileOpen(true)}
+            onDelete={() => setShowDeleteConfirm(true)}
+            onPayment={() => setIsPaymentDialogOpen(true)}
+            canModify={canModify}
+            isAdmin={userRole === 'admin'}
+          />
         </div>
       </AccordionTrigger>
 
       <AccordionContent>
         <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <h4 className="text-lg font-medium text-dashboard-accent1">Contact Information</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-dashboard-card p-3 rounded-lg border border-dashboard-cardBorder">
-              <p className="text-base text-dashboard-text">Email: <span className="text-white font-medium">{member.email || 'Not provided'}</span></p>
-              <p className="text-base text-dashboard-text">Phone: <span className="text-white font-medium">{member.phone || 'Not provided'}</span></p>
-              <p className="text-base text-dashboard-text">Date of Birth: <span className="text-white font-medium">{member.date_of_birth ? format(new Date(member.date_of_birth), 'dd/MM/yyyy') : 'Not provided'}</span></p>
-              <p className="text-base text-dashboard-text">Gender: <span className="text-white font-medium">{member.gender || 'Not provided'}</span></p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-lg font-medium text-dashboard-accent2">Address Details</h4>
-            <div className="bg-dashboard-card p-3 rounded-lg border border-dashboard-cardBorder">
-              <p className="text-base text-dashboard-text">Street: <span className="text-white font-medium">{member.address || 'Not provided'}</span></p>
-              <p className="text-base text-dashboard-text">Town: <span className="text-white font-medium">{member.town || 'Not provided'}</span></p>
-              <p className="text-base text-dashboard-text">Postcode: <span className="text-white font-medium">{member.postcode || 'Not provided'}</span></p>
-            </div>
-          </div>
+          <ContactInfoSection member={member} />
+          <AddressSection member={member} />
 
           {userRole === 'admin' && (
             <MemberPasswordSection 
@@ -237,42 +171,11 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
           <MemberPaymentHistory memberId={member.id} />
 
           {userRole === 'admin' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h4 className="text-sm font-medium text-dashboard-accent1">Notes</h4>
-                <Button 
-                  onClick={() => setIsNoteDialogOpen(true)}
-                  className="bg-dashboard-accent1 hover:bg-dashboard-accent1/80"
-                >
-                  Add Note
-                </Button>
-              </div>
-              <NotesList memberId={member.id} />
-            </div>
+            <NotesSection 
+              memberId={member.id}
+              onAddNote={() => setIsNoteDialogOpen(true)}
+            />
           )}
-
-          <PaymentDialog
-            isOpen={isPaymentDialogOpen}
-            onClose={() => setIsPaymentDialogOpen(false)}
-            memberId={member.id}
-            memberNumber={member.member_number}
-            memberName={member.full_name}
-            collectorInfo={collectorInfo}
-            rolePermissions={rolePermissions}
-          />
-
-          <NotesDialog
-            isOpen={isNoteDialogOpen}
-            onClose={() => setIsNoteDialogOpen(false)}
-            memberId={member.id}
-          />
-
-          <EditProfileDialog
-            member={member}
-            open={isEditProfileOpen}
-            onOpenChange={setIsEditProfileOpen}
-            onProfileUpdated={() => window.location.reload()}
-          />
 
           {userRole === 'admin' && (
             <div className="mt-6 border-t border-white/10 pt-4">
@@ -297,6 +200,29 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
           )}
         </div>
       </AccordionContent>
+
+      <PaymentDialog
+        isOpen={isPaymentDialogOpen}
+        onClose={() => setIsPaymentDialogOpen(false)}
+        memberId={member.id}
+        memberNumber={member.member_number}
+        memberName={member.full_name}
+        collectorInfo={collectorInfo}
+        rolePermissions={rolePermissions}
+      />
+
+      <NotesDialog
+        isOpen={isNoteDialogOpen}
+        onClose={() => setIsNoteDialogOpen(false)}
+        memberId={member.id}
+      />
+
+      <EditProfileDialog
+        member={member}
+        open={isEditProfileOpen}
+        onOpenChange={setIsEditProfileOpen}
+        onProfileUpdated={() => window.location.reload()}
+      />
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
