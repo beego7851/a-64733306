@@ -40,12 +40,10 @@ export const useLoginForm = () => {
         throw new Error('Unable to verify system status');
       }
 
-      // If in maintenance, verify if user is admin before proceeding
       if (maintenanceData?.is_enabled) {
         console.log('[Login] System in maintenance mode, checking admin credentials');
         const email = `${memberNumber.toLowerCase()}@temp.com`;
         
-        // Try admin login
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -56,7 +54,6 @@ export const useLoginForm = () => {
           throw new Error(maintenanceData.message || 'System is temporarily offline for maintenance');
         }
 
-        // Check if user is admin
         const { data: roles } = await supabase
           .from('user_roles')
           .select('role')
@@ -72,7 +69,6 @@ export const useLoginForm = () => {
         console.log('[Login] Admin access granted during maintenance mode');
       }
 
-      // Regular login flow
       console.log('[Login] Starting member verification');
       const member = await verifyMember(memberNumber);
       console.log('[Login] Member verification successful', {
@@ -82,8 +78,16 @@ export const useLoginForm = () => {
         verified: member.verified
       });
 
-      // Construct email - ensure lowercase and proper format
-      const email = `${memberNumber.toLowerCase()}@temp.com`;
+      // Get member's email from members table
+      const { data: memberData } = await supabase
+        .from('members')
+        .select('email')
+        .eq('member_number', memberNumber)
+        .single();
+
+      // Use member's email if available, otherwise fallback to temp email
+      const email = memberData?.email || `${memberNumber.toLowerCase()}@temp.com`;
+      
       console.log('[Login] Attempting sign in with:', { 
         email,
         memberNumber,
@@ -92,7 +96,7 @@ export const useLoginForm = () => {
       
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password: password.trim(), // Ensure password is trimmed
+        password: password.trim(),
       });
 
       if (signInError) {
@@ -103,7 +107,6 @@ export const useLoginForm = () => {
           email
         });
         
-        // Handle failed login attempt
         const { data: failedLoginData, error: failedLoginError } = await supabase
           .rpc('handle_failed_login', { member_number: memberNumber });
 
@@ -119,7 +122,6 @@ export const useLoginForm = () => {
           throw new Error(`Account locked. Too many failed attempts. Please try again after ${typedFailedLoginData.lockout_duration}`);
         }
 
-        // Provide more specific error message
         if (signInError.message.includes('Invalid login credentials')) {
           throw new Error('Invalid member number or password. Please check your credentials and try again.');
         }
@@ -128,23 +130,20 @@ export const useLoginForm = () => {
       }
 
       console.log('[Login] Sign in successful, resetting failed attempts');
-      // Reset failed login attempts on successful login
       await supabase.rpc('reset_failed_login', { member_number: memberNumber });
 
-      // Check if password reset is required
-      const { data: memberData } = await supabase
+      const { data: memberData2 } = await supabase
         .from('members')
         .select('password_reset_required')
         .eq('member_number', memberNumber)
         .maybeSingle();
 
-      if (memberData?.password_reset_required) {
+      if (memberData2?.password_reset_required) {
         console.log('[Login] Password reset required');
         toast({
           title: "Password reset required",
           description: "Please set a new password for your account",
         });
-        // TODO: Implement password reset flow
         return;
       }
 
