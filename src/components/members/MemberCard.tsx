@@ -72,7 +72,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
     enabled: !!member.collector
   });
 
-  // Add diagnostics query
   const { data: diagnostics, isLoading: isDiagnosticsLoading } = useQuery({
     queryKey: ['memberDiagnostics', member.id, showDiagnostics],
     queryFn: async () => {
@@ -81,7 +80,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
       console.log('Fetching diagnostics for member:', member.member_number);
       
       try {
-        // Fetch user roles
         const { data: roles, error: rolesError } = await supabase
           .from('user_roles')
           .select('*')
@@ -93,7 +91,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
         }
         console.log('Found roles:', roles);
 
-        // Fetch audit logs
         const { data: auditLogs, error: auditError } = await supabase
           .from('audit_logs')
           .select('*')
@@ -107,19 +104,17 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
         }
         console.log('Found audit logs:', auditLogs?.length || 0);
 
-        // Transform audit logs to match expected format
         const transformedLogs = (auditLogs || []).map(log => ({
           timestamp: log.timestamp,
           operation: log.operation,
           details: {
-            ...log.new_values,
+            ...(typeof log.new_values === 'object' ? log.new_values : {}),
             old_values: log.old_values,
             table: log.table_name,
             severity: log.severity
           }
         }));
 
-        // Fetch payment records
         const { data: payments, error: paymentsError } = await supabase
           .from('payment_requests')
           .select('*')
@@ -160,8 +155,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
   const handlePaymentClick = () => {
     setIsPaymentDialogOpen(true);
   };
-
-  // ... keep existing code (JSX for the member card component)
 
   return (
     <AccordionItem value={member.id} className="border-b border-white/10">
@@ -210,7 +203,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
 
       <AccordionContent>
         <div className="space-y-6 py-4">
-          {/* Contact Information */}
           <div className="space-y-2">
             <h4 className="text-lg font-medium text-dashboard-accent1">Contact Information</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-dashboard-card p-3 rounded-lg border border-dashboard-cardBorder">
@@ -221,7 +213,6 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
             </div>
           </div>
 
-          {/* Address Information */}
           <div className="space-y-2">
             <h4 className="text-lg font-medium text-dashboard-accent2">Address Details</h4>
             <div className="bg-dashboard-card p-3 rounded-lg border border-dashboard-cardBorder">
@@ -243,10 +234,8 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
             />
           )}
 
-          {/* Payment History */}
           <MemberPaymentHistory memberId={member.id} />
 
-          {/* Notes Section */}
           {userRole === 'admin' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
