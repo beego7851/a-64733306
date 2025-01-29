@@ -7,6 +7,7 @@ import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useRoleSync } from "@/hooks/useRoleSync";
 import { Loader2 } from "lucide-react";
 import MainLayout from "@/components/layout/MainLayout";
+import { canAccessTab, getDefaultRoute } from "@/utils/roleUtils";
 
 interface ProtectedRoutesProps {
   session: Session | null;
