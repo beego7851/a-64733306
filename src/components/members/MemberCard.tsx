@@ -29,6 +29,7 @@ import {
 import { Trash2 } from 'lucide-react';
 import MemberPasswordSection from './card/MemberPasswordSection';
 import MemberPaymentHistory from './card/MemberPaymentHistory';
+import LoginDiagnosticsPanel from './diagnostics/LoginDiagnosticsPanel';
 
 interface MemberCardProps {
   member: Member;
@@ -48,55 +49,84 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const { toast } = useToast();
   const { hasRole } = useRoleAccess();
   const isCollector = hasRole('collector');
   const canModify = userRole === 'admin' || userRole === 'collector';
 
-  const { data: collectorInfo } = useQuery({
-    queryKey: ['collector', member.collector],
+  // Add diagnostics query
+  const { data: diagnostics, isLoading: isDiagnosticsLoading } = useQuery({
+    queryKey: ['memberDiagnostics', member.id, showDiagnostics],
     queryFn: async () => {
-      if (!member.collector) return null;
+      if (!showDiagnostics) return null;
       
-      const { data: collectorData, error } = await supabase
-        .from('members_collectors')
-        .select('*')
-        .eq('name', member.collector)
-        .maybeSingle();
+      console.log('Fetching diagnostics for member:', member.member_number);
       
-      if (error) throw error;
+      try {
+        // Fetch user roles
+        const { data: roles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('*')
+          .eq('user_id', member.auth_user_id);
 
-      if (collectorData) {
-        const collector: Collector = {
-          ...collectorData,
-          roles: [],
-          enhanced_roles: [],
-          permissions: {
-            canManageUsers: false,
-            canCollectPayments: true,
-            canAccessSystem: true,
-            canViewAudit: false,
-            canManageCollectors: false
+        if (rolesError) {
+          console.error('Error fetching roles:', rolesError);
+          throw rolesError;
+        }
+        console.log('Found roles:', roles);
+
+        // Fetch audit logs
+        const { data: auditLogs, error: auditError } = await supabase
+          .from('audit_logs')
+          .select('*')
+          .eq('user_id', member.auth_user_id)
+          .order('timestamp', { ascending: false })
+          .limit(10);
+
+        if (auditError) {
+          console.error('Error fetching audit logs:', auditError);
+          throw auditError;
+        }
+        console.log('Found audit logs:', auditLogs?.length || 0);
+
+        // Fetch payment records
+        const { data: payments, error: paymentsError } = await supabase
+          .from('payment_requests')
+          .select('*')
+          .eq('member_number', member.member_number)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (paymentsError) {
+          console.error('Error fetching payments:', paymentsError);
+          throw paymentsError;
+        }
+        console.log('Found payments:', payments?.length || 0);
+
+        return {
+          roles: roles || [],
+          auditLogs: auditLogs || [],
+          payments: payments || [],
+          accountStatus: {
+            isVerified: member.verified,
+            hasAuthId: !!member.auth_user_id,
+            membershipStatus: member.status,
+            paymentStatus: member.yearly_payment_status,
           }
         };
-        return collector;
+      } catch (error) {
+        console.error('Error in diagnostics:', error);
+        toast({
+          title: "Error running diagnostics",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+          variant: "destructive",
+        });
+        return null;
       }
-      return null;
     },
-    enabled: !!member.collector
+    enabled: showDiagnostics
   });
-
-  const handlePaymentClick = () => {
-    if (!isCollector && userRole !== 'admin') {
-      toast({
-        title: "Not Authorized",
-        description: "Only collectors or admins can record payments",
-        variant: "destructive"
-      });
-      return;
-    }
-    setIsPaymentDialogOpen(true);
-  };
 
   return (
     <AccordionItem value={member.id} className="border-b border-white/10">
@@ -219,6 +249,28 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
             onOpenChange={setIsEditProfileOpen}
             onProfileUpdated={() => window.location.reload()}
           />
+
+          {userRole === 'admin' && (
+            <div className="mt-6 border-t border-white/10 pt-4">
+              <Button
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                variant="ghost"
+                className="w-full justify-between text-dashboard-text hover:text-white"
+              >
+                Login Diagnostics
+                {showDiagnostics ? (
+                  <ChevronUp className="w-4 h-4 ml-2" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                )}
+              </Button>
+              
+              <LoginDiagnosticsPanel 
+                diagnostics={diagnostics}
+                isLoading={isDiagnosticsLoading}
+              />
+            </div>
+          )}
         </div>
       </AccordionContent>
 
