@@ -7,7 +7,6 @@ import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useRoleSync } from "@/hooks/useRoleSync";
 import { Loader2 } from "lucide-react";
 import MainLayout from "@/components/layout/MainLayout";
-import { canAccessTab, getDefaultRoute } from "@/utils/roleUtils";
 
 interface ProtectedRoutesProps {
   session: Session | null;
@@ -37,37 +36,47 @@ const ProtectedRoutes = ({ session }: ProtectedRoutesProps) => {
     console.log('Path changed, updating active tab:', {
       path: location.pathname,
       newTab,
-      canAccess: canAccessTab(newTab, userRoles),
+      canAccess: roleAccessCheck(newTab),
       userRole,
       isLoading: roleLoading
     });
     
     // Only check access after roles are loaded
-    if (!roleLoading && !isInitialLoad && userRoles && !canAccessTab(newTab, userRoles)) {
-      console.log('User cannot access tab:', newTab);
-      const defaultRoute = getDefaultRoute(userRoles);
+    if (!roleLoading && !isInitialLoad && userRoles) {
+      console.log('Checking access for tab:', newTab);
       
-      // Only show toast if we haven't shown one yet
-      if (!hasShownAccessDenied) {
-        toast({
-          title: "Access Denied",
-          description: "You don't have permission to access this section.",
-          variant: "destructive",
-        });
-        setHasShownAccessDenied(true);
+      // Restrict system and financials to admin only
+      if ((newTab === 'system' || newTab === 'financials') && !userRoles.includes('admin')) {
+        console.log('Access denied to restricted section');
+        if (!hasShownAccessDenied) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have permission to access this section.",
+            variant: "destructive",
+          });
+          setHasShownAccessDenied(true);
+        }
+        navigate('/dashboard');
+        return;
       }
       
-      navigate(defaultRoute);
-      return;
+      if (!roleAccessCheck(newTab)) {
+        console.log('User cannot access tab:', newTab);
+        if (!hasShownAccessDenied) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have permission to access this section.",
+            variant: "destructive",
+          });
+          setHasShownAccessDenied(true);
+        }
+        navigate('/dashboard');
+        return;
+      }
     }
     
     setActiveTab(newTab);
-  }, [location.pathname, navigate, userRoles, userRole, toast, roleLoading, isInitialLoad, hasShownAccessDenied]);
-
-  // Reset hasShownAccessDenied when roles change
-  useEffect(() => {
-    setHasShownAccessDenied(false);
-  }, [userRoles]);
+  }, [location.pathname, navigate, userRoles, userRole, toast, roleLoading, isInitialLoad, hasShownAccessDenied, roleAccessCheck]);
 
   useEffect(() => {
     let mounted = true;
@@ -158,17 +167,32 @@ const ProtectedRoutes = ({ session }: ProtectedRoutesProps) => {
       isSidebarOpen={isSidebarOpen}
       onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       onTabChange={(tab) => {
-        // Only check access after roles are loaded
-        if (!roleLoading && userRoles && !canAccessTab(tab, userRoles)) {
-          if (!hasShownAccessDenied) {
-            toast({
-              title: "Access Denied",
-              description: "You don't have permission to access this section.",
-              variant: "destructive",
-            });
-            setHasShownAccessDenied(true);
+        // Check access before allowing tab change
+        if (!roleLoading && userRoles) {
+          // Restrict system and financials to admin only
+          if ((tab === 'system' || tab === 'financials') && !userRoles.includes('admin')) {
+            if (!hasShownAccessDenied) {
+              toast({
+                title: "Access Denied",
+                description: "You don't have permission to access this section.",
+                variant: "destructive",
+              });
+              setHasShownAccessDenied(true);
+            }
+            return;
           }
-          return;
+          
+          if (!roleAccessCheck(tab)) {
+            if (!hasShownAccessDenied) {
+              toast({
+                title: "Access Denied",
+                description: "You don't have permission to access this section.",
+                variant: "destructive",
+              });
+              setHasShownAccessDenied(true);
+            }
+            return;
+          }
         }
         const path = tab === 'dashboard' ? '/' : `/${tab}`;
         navigate(path);

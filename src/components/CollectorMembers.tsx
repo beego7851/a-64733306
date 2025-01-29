@@ -22,51 +22,48 @@ const CollectorMembers = ({ collectorName }: { collectorName: string }) => {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [newCollector, setNewCollector] = useState('');
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      console.log('Checking authentication and roles...');
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      console.log('Current auth user:', user);
-      
-      if (authError) {
-        console.error('Auth error:', authError);
-        return;
-      }
-      
-      if (user) {
-        const { data: roles, error: rolesError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id);
-          
-        if (rolesError) {
-          console.error('Error fetching roles:', rolesError);
-          return;
-        }
-        
-        console.log('User roles:', roles);
-      }
-    };
-    
-    checkAuth();
-  }, []);
-
   const { data: members, isLoading, error, refetch } = useQuery({
     queryKey: ['collectorMembers', collectorName],
     queryFn: async () => {
       console.log('Starting member fetch for collector:', collectorName);
       
+      // Get current user's role
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user?.id);
+
+      const isAdmin = roles?.some(r => r.role === 'admin');
+      
+      // If admin, fetch all members for the collector
+      if (isAdmin) {
+        const { data, error } = await supabase
+          .from('members')
+          .select('*')
+          .eq('collector', collectorName);
+
+        if (error) throw error;
+        return data as Member[];
+      }
+      
+      // If collector, only fetch their assigned members
+      const { data: collectorData } = await supabase
+        .from('members_collectors')
+        .select('name')
+        .eq('member_number', user?.user_metadata.member_number)
+        .single();
+
+      if (collectorData?.name !== collectorName) {
+        return [];
+      }
+
       const { data, error } = await supabase
         .from('members')
         .select('*')
         .eq('collector', collectorName);
 
-      if (error) {
-        console.error('Error fetching members:', error);
-        throw error;
-      }
-
-      console.log('Members data fetched:', data);
+      if (error) throw error;
       return data as Member[];
     },
     enabled: !!collectorName && !!session,
@@ -133,7 +130,6 @@ const CollectorMembers = ({ collectorName }: { collectorName: string }) => {
   }
 
   if (isLoading) {
-    console.log('Component in loading state');
     return (
       <div className="flex justify-center items-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -142,7 +138,6 @@ const CollectorMembers = ({ collectorName }: { collectorName: string }) => {
   }
 
   if (error) {
-    console.error('Component in error state:', error);
     return (
       <div className="p-4 text-red-500">
         Error loading members: {error instanceof Error ? error.message : 'Unknown error'}
@@ -151,7 +146,6 @@ const CollectorMembers = ({ collectorName }: { collectorName: string }) => {
   }
 
   if (!members || members.length === 0) {
-    console.log('No members found for collector:', collectorName);
     return (
       <div className="p-4 text-gray-500">
         No members found for collector: {collectorName}
