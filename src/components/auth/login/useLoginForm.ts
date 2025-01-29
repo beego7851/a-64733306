@@ -46,7 +46,7 @@ export const useLoginForm = () => {
         
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
-          password: password.trim(),
+          password,
         });
 
         if (signInError) {
@@ -78,8 +78,15 @@ export const useLoginForm = () => {
         verified: member.verified
       });
 
-      // Always use temp email format for authentication
-      const email = `${memberNumber.toLowerCase()}@temp.com`;
+      // Get member's email from members table
+      const { data: memberData } = await supabase
+        .from('members')
+        .select('email')
+        .eq('member_number', memberNumber)
+        .single();
+
+      // Use member's email if available, otherwise fallback to temp email
+      const email = memberData?.email || `${memberNumber.toLowerCase()}@temp.com`;
       
       console.log('[Login] Attempting sign in with:', { 
         email,
@@ -125,13 +132,13 @@ export const useLoginForm = () => {
       console.log('[Login] Sign in successful, resetting failed attempts');
       await supabase.rpc('reset_failed_login', { member_number: memberNumber });
 
-      const { data: memberData } = await supabase
+      const { data: memberData2 } = await supabase
         .from('members')
         .select('password_reset_required')
         .eq('member_number', memberNumber)
         .maybeSingle();
 
-      if (memberData?.password_reset_required) {
+      if (memberData2?.password_reset_required) {
         console.log('[Login] Password reset required');
         toast({
           title: "Password reset required",
