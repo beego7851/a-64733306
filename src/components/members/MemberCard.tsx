@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import MemberPasswordSection from './card/MemberPasswordSection';
 import MemberPaymentHistory from './card/MemberPaymentHistory';
 import LoginDiagnosticsPanel from './diagnostics/LoginDiagnosticsPanel';
@@ -54,6 +54,23 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
   const { hasRole } = useRoleAccess();
   const isCollector = hasRole('collector');
   const canModify = userRole === 'admin' || userRole === 'collector';
+
+  const { data: collectorInfo } = useQuery({
+    queryKey: ['collectorInfo', member.collector],
+    queryFn: async () => {
+      if (!member.collector) return null;
+      
+      const { data, error } = await supabase
+        .from('members_collectors')
+        .select('id, name, phone, prefix, number, email, active, created_at, updated_at, member_number')
+        .eq('name', member.collector)
+        .maybeSingle();
+        
+      if (error) throw error;
+      return data as Collector;
+    },
+    enabled: !!member.collector
+  });
 
   // Add diagnostics query
   const { data: diagnostics, isLoading: isDiagnosticsLoading } = useQuery({
@@ -90,6 +107,18 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
         }
         console.log('Found audit logs:', auditLogs?.length || 0);
 
+        // Transform audit logs to match expected format
+        const transformedLogs = (auditLogs || []).map(log => ({
+          timestamp: log.timestamp,
+          operation: log.operation,
+          details: {
+            ...log.new_values,
+            old_values: log.old_values,
+            table: log.table_name,
+            severity: log.severity
+          }
+        }));
+
         // Fetch payment records
         const { data: payments, error: paymentsError } = await supabase
           .from('payment_requests')
@@ -106,7 +135,7 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
 
         return {
           roles: roles || [],
-          auditLogs: auditLogs || [],
+          auditLogs: transformedLogs,
           payments: payments || [],
           accountStatus: {
             isVerified: member.verified,
@@ -127,6 +156,12 @@ const MemberCard = ({ member, userRole, onEditClick, onDeleteClick, rolePermissi
     },
     enabled: showDiagnostics
   });
+
+  const handlePaymentClick = () => {
+    setIsPaymentDialogOpen(true);
+  };
+
+  // ... keep existing code (JSX for the member card component)
 
   return (
     <AccordionItem value={member.id} className="border-b border-white/10">
